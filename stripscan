@@ -1,0 +1,158 @@
+#!/bin/bash
+#
+# Licensing:
+#
+# Copyright © Laurence Lumi 2017
+# Licensed GNU General Public License v2
+# which can be found here https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html
+#
+
+PROGNAME=`basename $0`
+message1()
+{
+    echo >&2 ""
+    echo >&2 "$PROGNAME:" "$@"
+    cat << MESSAGE1
+USAGE: stripscan [-c coords] [-b bcolor] [-f fuzzval] [-g grid] [-d discard]
+[-p prune] [-u unrotate] [i innertrim] [-e extend] [-m mask] infile [outfile_prefix]
+USAGE: stripscan [-h or -help]
+
+OPTIONS:
+
+-f          fuzz           fuzz value used a threshold for removing any white areas from the scan
+                           if brighest area of the film base is 75% then the threshold should be less than 25%
+                           expressed as (integer) percent 0 to 100;
+                           default=25
+-m          mirror         flips the image after it has been cropped usefull if the negative was scanned emulsion down
+-r          rotate         rotates the image after being cropped, positive integer <= 360
+-a          all boxes      include crops of all boxes, inluding the gaps between frames usefull for debugging
+-e          extend         extends the crop X pixels
+-s          show mask      show how the mask was created usefull for debugging
+MESSAGE1
+exit 1
+}
+message2()
+{
+    echo >&2 ""
+    echo >&2 "$PROGNAME:" "$@"
+    cat  >&2 << MESSAGE2
+
+NAME: stripscan
+
+PURPOSE: Blah Blah
+
+DESCRIPTION: Blah Blah
+
+ Arguments:
+
+MESSAGE2
+exit 1
+}
+
+scale=0
+rotate=90
+tmpdir="./"
+showmask="0"
+tmpprefix=$tmpdir"_ss_"
+
+while [ $# -gt 0 ]
+do
+    # get parameters
+    case "$1" in
+        -h|-help)    # help information
+            echo ""
+            message2
+            ;;
+        -S)	showmask=1
+            ;;
+        -m)	MIRROR="-flop"
+            ;;
+        -s)    # scale
+            shift  # to get the next parameter
+            scale="$1"
+            if [[ ! "$scale" =~ ^[0-9]+$ ]] || [ "$scale" -lt 0 -o "$scale" -gt 100 ]; then
+                echo "--- scale=$scale must be a positive integer value between 0 and 100 ---"
+                message1
+            fi
+            ;;
+        -r)    # rotate
+            shift  # to get the next parameter
+            rotate="$1"
+            if [[ ! "$rotate" =~ ^[0-9]+$ ]] || [ "$rotate" -lt 0 -o "$rotate" -gt 360 ]; then
+                echo "--- rotate=$rotate must be a positive integer value between 0 and 360 ---"
+                message1
+            fi
+            ROTATE="-rotate $rotate +repage"
+            ;;
+        -)    # STDIN and end of arguments
+            break
+            ;;
+        -*)    # any other - argument
+            "--- UNKNOWN OPTION ---"
+            ;;
+        *)     # end of arguments
+            break
+            ;;
+    esac
+    shift   # next option
+done
+
+infile=$1
+outprefix=$2
+
+if [ -z $infile ]
+then
+    echo "must provide a filename"
+    message2
+fi
+if [ ! -f "$infile" -o ! -r "$infile" ]; then
+    echo "Cannot open: $infile"
+    exit 1
+fi
+
+if [ -z $outprefix ]
+then
+    outprefix=${infile%".tif"}_
+    echo outprefix: $outprefix
+else
+    outprefix=${outprefix%".tif"}_
+fi
+
+
+if [[ $infile =~ .*.tif$ ]]
+then
+    echo assuming the file being tif is saved in a linear colorspace, even though the metadata says otherwise
+    CSPACE="-set colorspace RGB"
+fi
+
+#review this http://www.imagemagick.org/Usage/filter/nicolas/
+if [ $scale -ne 0 ]; then
+    set -- `convert "$infile" -format "%[fx: $scale*floor(w/$scale)] %[fx: $scale*floor(h/$scale)] %[fx: floor(w/$scale)] %[fx: floor(h/$scale)]" info:`
+    BINNING_CMD="-crop ${1}x${2}+0+0 +repage -scale ${3}x${4}"
+    #echo BINNING_CMD:$BINNING_CMD
+fi
+
+if [ $scale -ne 0 -o $rotate -ne 0 ]; then
+    INFILE="$tmpprefix"resized_rotated.tif
+    convert "$infile" $CSPACE $BINNING_CMD $ROTATE $MIRROR $INFILE
+fi
+
+if [ $showmask -eq 1 ]; then
+    echo "need to revisit this"
+    multicrop -u 3 -f 10 -c 100,10 -m output $INFILE
+fi
+
+untrimmed="$tmpprefix"untrimmed
+#-d should be factor of the original scan and film type
+multicrop -u 3 -f 10 -c 100,10 -d 200 -e 10 $INFILE "$untrimmed".tif
+for i in `ls "$untrimmed"*.tif`; do
+    strip_name="$outprefix""strip"${i#"$untrimmed"}
+    echo strip:$strip_name
+    autotrim -f 10 -m inner $i $strip_name
+done
+
+if [ "$showmask" -eq 0 ]; then
+    rm "$tmpprefix"*
+fi
+
+exit 0

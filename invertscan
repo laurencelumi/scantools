@@ -1,0 +1,401 @@
+#!/bin/bash
+#
+# Licensing:
+#
+# Copyright © Laurence Lumi 2017
+# Licensed GNU General Public License v2
+# which can be found here https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html
+#
+
+PROGNAME=`basename $0`
+message1()
+	{
+	echo >&2 ""
+	echo >&2 "$PROGNAME:" "$@"
+        cat << MESSAGE1
+USAGE: invertscan [-f fuzz ] [-m mirror ] [ -r rotate ]
+[ -a all boxes ] [-e extend] [-s show mask] [ -n number ] infile [outfile_prefix]
+USAGE: invertscan [-h or -help]
+
+OPTIONS:
+
+-f          fuzz           fuzz value used a threshold for removing any white areas from the scan
+                           if brighest area of the film base is 75% then the threshold should be less than 25%
+                           expressed as (integer) percent 0 to 100;
+                           default=25
+-m          mirror         flips the image after it has been cropped usefull if the negative was scanned emulsion down
+-r          rotate         rotates the image after being cropped, positive integer <= 360
+-a          all boxes      include crops of all boxes, inluding the gaps between frames usefull for debugging
+-e          extend         extends the crop X pixels
+-s          show mask      show how the mask was created usefull for debugging
+-n          frane number   the starting frame number to use file name defaults to #1
+MESSAGE1
+exit 1
+	}
+message2()
+{
+    echo >&2 ""
+    echo >&2 "$PROGNAME:" "$@"
+    cat  >&2 << MESSAGE2
+
+NAME: invertscan
+
+PURPOSE: to crop separate frames of a trimmed film strip
+
+
+Arguments:
+
+-f          fuzz           fuzz value used a threshold for removing any white areas from the scan
+                           if brighest area of the film base is 75% then the threshold should be less than 25%
+                           expressed as (integer) percent 0 to 100;
+                           default=25
+-m          mirror         flips the image after it has been cropped usefull if the negative was scanned emulsion down
+-r          rotate         rotates the image after being cropped, positive integer <= 360
+-a          all boxes      include crops of all boxes, inluding the gaps between frames usefull for debugging
+-e          extend         extends the crop X pixels
+-S          show mask      show how the mask was created usefull for debugging
+MESSAGE2
+exit 1
+}
+
+tmpdir="./"
+tmpprefix=$tmpdir"_is_"
+COMMENT="Processed with invertscan"
+M_GAMMA=1.625 #ISO film gamma
+R_GAMMA=1.807 #Portra 400 as default
+G_GAMMA=1.817 #Portra 400 as default
+B_GAMMA=1.563 #Portra 400 as default
+B_POINT=0.005 #not sure what do with this
+PROF_DIR=$HOME/.scantools
+ZIP="-compress zip"
+approach="c_invert_then_BP_then_gamma"
+showtmp=0
+
+while [ $# -gt 0 ]
+do
+    # get parameters
+    case "$1" in
+        -h|-help)    # help information
+            echo ""
+            message2
+            ;;
+        -S)	showtmp=1
+            ;;
+        -c1)	approach="c_invert_then_BP_then_gamma" #current default
+            ;;
+        -c2)	approach="c_invert_gamma_then_BP"
+            ;;
+        -c3)	approach="c_invert_gamma_only"
+            ;;
+        -c4)	approach="c_rethink"
+            ;;
+        -m1)	approach="m_invert_then_BP_then_gamma"
+            ;;
+        -m2)	approach="m_invert_gamma_then_BP"
+            ;;
+        -r)    # rotate
+            shift
+            rotate="$1"
+            if [[ ! "$rotate" =~ ^[0-9]+$ ]] || [ "$rotate" -lt 0 -o "$rotate" -gt 360 ]; then
+                echo "--- rotate=$rotate must be a positive integer value between 0 and 360 ---"
+                message1
+            fi
+            ROTATE="-rotate $rotate +repage"
+            ;;
+        -f)    # fuzz
+            shift
+            fuzz="$1"
+            if [[ ! "$fuzz" =~ ^[0-9]+$ ]] || [ "$fuzz" -lt 0 -o "$fuzz" -gt 100 ]; then
+                echo "--- fuzz=$fuzz must be a positive integer value between 0 and 100 ---"
+                message1
+            fi
+            ;;
+        -n)    # number
+            shift
+            framenumber="$1"
+            if [[ ! "$framenumber" =~ ^[0-9]+$ ]]; then
+                echo "--- framenumber=$framenumber must be a integer value  ---"
+                message1
+            fi
+            ;;
+        -)    # STDIN and end of arguments
+            break
+            ;;
+        -*)    # any other - argument
+            echo "--- UNKNOWN OPTION ---"
+            message1
+            ;;
+        *)     # end of arguments
+            break
+            ;;
+    esac
+    shift   # next option
+done
+
+infile=$1
+outfile=$2
+
+if [ -z $infile ]; then
+    echo "must provide a filename"
+    message2
+fi
+if [ ! -f "$infile" -o ! -r "$infile" ]; then
+    echo "Cannot open: $infile"
+    exit 1
+fi
+
+if [ -z $outfile ]; then
+    outfile=${infile%".tif"}_P.tif
+    echo outfile: $outfile
+fi
+
+if [[ $infile =~ .*.tif$ ]]; then
+    echo assuming the file being tif is saved in a linear colorspace, even though the metadata says otherwise
+    CSPACE="-set colorspace RGB"
+fi
+
+tmpfile="$tmpprefix""${infile%.tif}"
+
+#default to red use a flag to choose
+color="r"
+
+# calculate the values to remove the mask
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+"%[fx: maxima.intensity/maxima.r ] "\
+"%[fx: maxima.intensity/maxima.g ] "\
+"%[fx: maxima.intensity/maxima.b ] "\
+"%[fx: -log(minima.$color) -  (-log(maxima.$color)) ] "\
+  info:`
+
+R_FILTER=$1
+G_FILTER=$2
+B_FILTER=$3
+MAXIMUM_DENSITY_ABOVE_FILM_BASE=$4
+echo Results are in:
+echo Filtration values to remove mask
+echo Red: $R_FILTER
+echo Green: $G_FILTER
+echo Red : $B_FILTER
+echo Maximum Density above film base
+echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
+
+#remove the mask first before doing anything important there should not be any applied to mask
+
+#rewrite this with -evaluate
+convert "$infile[0]" -strip $CSPACE  \
+    -channel R -fx "u * $R_FILTER" -fx "u?u:1"  \
+    -channel G -fx "u * $G_FILTER" -fx "u?u:1"  \
+    -channel B -fx "u * $B_FILTER" -fx "u?u:1"  \
+    -comment "$COMMENT" "$tmpfile"_nomask.tif
+
+#lets have look now that mask is gone
+eval set -- `convert "$tmpfile"_nomask.tif $CSPACE  -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: -log(minima.intensity) -  (-log(maxima.intensity)) ] "\
+"%[fx: minima.intensity] "\
+  info:`
+
+Jn_MIN=$1
+MAXIMUM_DENSITY_ABOVE_FILM_BASE=$2
+
+echo NEW DATA with mask removed:
+echo Jn_Min
+echo $Jn_MIN
+echo Maximum Density above film base
+echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
+
+#K=Jn_MIN^GAMMA
+#$K should be in the following range put a test in there so where
+#0.000001 ≤ $K ≤ 0.001
+
+if [ $approach = "c_invert_gamma_then_BP" ]; then
+    echo approach = $approach
+
+    #convert per cfs-244
+    convert "$tmpfile"_nomask.tif -strip $CSPACE \
+        -channel R -fx "($Jn_MIN/u)^$R_GAMMA" \
+        -channel G -fx "($Jn_MIN/u)^$G_GAMMA" \
+        -channel B -fx "($Jn_MIN/u)^$B_GAMMA" \
+        -colorspace sRGB \
+        -comment "$COMMENT" "$tmpfile"_inverted_with_gamma.tif
+
+    #there is still some funky stuff in IM-6.9.7-4 which means the colorspace and gamma is not quite working as expected, this at the moment should give the same result as above
+    #PUT ASIDE UNTIL I FIGURE OUT THE IM BUG
+    convert "$tmpfile"_nomask.tif -strip $CSPACE \
+        -separate \
+        \( -clone 0 -poly "$Jn_MIN,-1" -poly "1,$R_GAMMA" \) -swap 0,3 -delete 3 \
+        \( -clone 1 -poly "$Jn_MIN,-1" -poly "1,$G_GAMMA" \) -swap 1,3 -delete 3 \
+        \( -clone 2 -poly "$Jn_MIN,-1" -poly "1,$B_GAMMA" \) -swap 2,3 -delete 3 \
+        $CSPACE \
+        -combine -type TrueColor \
+        -comment "$COMMENT" "$tmpfile"_inverted_with_gamma_2.tif
+
+    #blackpoint per cfs-243
+    #calculating BP
+    #note previous operation save the filed non-linear
+    eval set -- `convert "$tmpfile"_inverted_with_gamma.tif -colorspace RGB -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: maxima.intensity] "\
+  info:`
+
+    echo BP DATA:$*
+
+    BP=$1
+
+    #note previous operation save the filed non-linear
+    convert "$tmpfile"_inverted_with_gamma.tif -strip -colorspace RGB \
+        +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
+        -comment "$COMMENT" $ZIP "$outfile"
+fi
+
+if [ $approach = "c_invert_then_BP_then_gamma" ]; then
+    echo approach = $approach
+
+    #invert only no gamma
+    convert "$tmpfile"_nomask.tif -strip $CSPACE  \
+        -channel R -fx "($Jn_MIN/u)" \
+        -channel G -fx "($Jn_MIN/u)" \
+        -channel B -fx "($Jn_MIN/u)" \
+        -colorspace sRGB \
+        -comment "$COMMENT" "$tmpfile"_inverted_only.tif
+
+    #blackpoint per cfs-243
+    #calculating BP
+    #note previous operation save the filed non-linear
+    eval set -- `convert "$tmpfile"_inverted_only.tif -colorspace RGB -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: maxima.intensity] "\
+  info:`
+
+    echo BP DATA:$*
+
+    BP=$1
+
+    #note previous operation save the filed non-linear
+    convert "$tmpfile"_inverted_only.tif -strip -colorspace RGB \
+        +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
+        -comment "$COMMENT" $ZIP "$tmpfile"_inverted_with_bp.tif
+
+    #invert only no gamma
+    convert "$tmpfile"_inverted_with_bp.tif -strip -colorspace RGB  \
+        -channel R -fx "u^$R_GAMMA" \
+        -channel G -fx "u^$G_GAMMA)" \
+        -channel B -fx "u^$B_GAMMA)" \
+        -colorspace sRGB \
+        -comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+if [ $approach = "c_invert_gamma_only" ]; then
+    echo approach = $approach
+
+    #convert per cfs-244
+    convert "$tmpfile"_nomask.tif -strip $CSPACE \
+        -channel R -fx "($Jn_MIN/u)^$R_GAMMA" \
+        -channel G -fx "($Jn_MIN/u)^$G_GAMMA" \
+        -channel B -fx "($Jn_MIN/u)^$B_GAMMA" \
+        -colorspace sRGB \
+        -comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+if [ $approach = "c_rethink" ]; then
+    echo approach = $approach
+
+# calculate the values of the highlights
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+"%[fx: minima.r ] "\
+"%[fx: minima.g ] "\
+"%[fx: minima.b ] "\
+  info:`
+
+R_HIGHLIGHT=$1
+G_HIGHLIGHT=$2
+B_HIGHLIGHT=$3
+
+    #convert per cfs-244
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "($R_HIGHLIGHT/u)^$R_GAMMA" \
+        -channel G -fx "($G_HIGHLIGHT/u)^$G_GAMMA" \
+        -channel B -fx "($B_HIGHLIGHT/u)^$B_GAMMA" \
+        -colorspace sRGB \
+        -comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+
+if [ $approach = "m_invert_gamma_then_BP" ]; then
+    echo approach = $approach
+
+    #convert per cfs-244
+    convert "$tmpfile"_nomask.tif -strip $CSPACE \
+        -fx "($Jn_MIN/u)^$M_GAMMA" \
+        -colorspace sRGB \
+        -comment "$COMMENT" "$tmpfile"_inverted_with_gamma.tif
+
+    #there is still some funky stuff in IM-6.9.7-4 which means the colorspace and gamma is not quite working as expected, this at the movent should give the same result as above
+    #PUT ASIDE UNTIL I FIGURE OUT THE IM BUG
+    convert "$tmpfile"_nomask.tif -strip $CSPACE \
+        -separate \
+        \( -clone 0 -poly "$Jn_MIN,-1" -poly "1,$M_GAMMA" \) -swap 0,3 -delete 3 \
+        $CSPACE \
+        -combine -type TrueColor \
+        -comment "$COMMENT" "$tmpfile"_inverted_with_gamma_2.tif
+
+    #blackpoint per cfs-243
+    #calculating BP
+    #note previous operation save the filed non-linear
+    eval set -- `convert "$tmpfile"_inverted_with_gamma.tif -colorspace RGB -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: maxima.intensity] "\
+  info:`
+
+    echo BP DATA:$*
+
+    BP=$1
+
+    #note previous operation save the filed non-linear
+    convert "$tmpfile"_inverted_with_gamma.tif -strip -colorspace RGB \
+        +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
+        -comment "$COMMENT" $ZIP "$outfile"
+fi
+
+if [ $approach = "m_invert_then_BP_then_gamma" ]; then
+    echo approach = $approach
+
+    #invert only no gamma
+    convert "$tmpfile"_nomask.tif -strip $CSPACE  \
+        -fx "($Jn_MIN/u)" \
+        -colorspace sRGB \
+        -comment "$COMMENT" "$tmpfile"_inverted_only.tif
+
+    #blackpoint per cfs-243
+    #calculating BP
+    #note previous operation save the filed non-linear
+    eval set -- `convert "$tmpfile"_inverted_only.tif -colorspace RGB -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: maxima.intensity] "\
+  info:`
+
+    echo BP DATA:$*
+
+    BP=$1
+
+    #note previous operation save the filed non-linear
+    convert "$tmpfile"_inverted_only.tif -strip -colorspace RGB \
+        +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
+        -comment "$COMMENT" $ZIP "$tmpfile"_inverted_with_bp.tif
+
+    #invert only no gamma
+    convert "$tmpfile"_inverted_with_bp.tif -strip -colorspace RGB  \
+        -fx "u^$M_GAMMA" \
+        -colorspace sRGB \
+        -comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+
+
+if [ "$showtmp" -eq 0 ]; then
+    rm "$tmpfile"*
+fi
