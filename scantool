@@ -1,0 +1,21 @@
+#!/bin/bash
+
+infile=${1%".tif"}
+
+if [ -z $infile ]
+then
+    echo "must provide a filename"
+    exit 0
+fi
+
+stripscan -s 8 -r 90 "$infile".tif
+
+for i in `ls "$infile"_strip-*`; do
+    framescan $i
+done
+
+mkdir -p "$infile"_frames
+mv "$infile"_strip*_frame* "$infile"_frames
+
+mkdir -p "$infile"_strips
+mv "$infile"_strip-* "$infile"_strips
