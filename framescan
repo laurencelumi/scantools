@@ -205,9 +205,9 @@ for ((i=0;i<num;i++)); do
     echo converting $i XYxy $X $Y $x $y
     #not sure if CSPACE is necessary here but should not hurt
     if [ "$allboxes" -eq 0 ]; then
-        OUTFILE="$outprefix"frame_"$framenumber".tif
+        OUTFILE="$outprefix"frame-"$framenumber".tif
     else
-        OUTFILE="$outprefix"frame_boxnumber_"$i".tif
+        OUTFILE="$outprefix"frame_boxnumber-"$i".tif
     fi
     framenumber=$((framenumber+1))
     convert $infile $CSPACE +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $MIRROR $ROTATE $OUTFILE 

@@ -138,8 +138,8 @@ if [ $scale -ne 0 -o $rotate -ne 0 ]; then
 fi
 
 if [ $showmask -eq 1 ]; then
-    echo "need to revisit this"
-    multicrop -u 3 -f 10 -c 100,10 -m output $INFILE
+    echo "need to revisit this the multicrop should be same as the one below"
+    multicrop -u 3 -f 10 -c 100,10 -d 200 -e 10 -m output $INFILE "$untrimmed".tif
 fi
 
 untrimmed="$tmpprefix"untrimmed
