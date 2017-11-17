@@ -9,4 +9,3 @@ includes the following:
 - profilescan
 - invertscan
 - takepicture
-

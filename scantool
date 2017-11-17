@@ -8,6 +8,7 @@ then
     exit 0
 fi
 
+#stripscan -s 8 -r 90 "$infile".tif
 stripscan -s 8 -r 90 "$infile".tif
 
 for i in `ls "$infile"_strip-*`; do
