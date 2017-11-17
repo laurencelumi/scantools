@@ -1,4 +1,11 @@
 #!/bin/bash
+#
+# Licensing:
+#
+# Copyright © Laurence Lumi 2017
+# Licensed GNU General Public License v3
+# which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
+#
 
 infile=${1%".tif"}
 
@@ -9,10 +16,11 @@ then
 fi
 
 #stripscan -s 8 -r 90 "$infile".tif
-stripscan -s 8 -r 90 "$infile".tif
+stripscan -r 90 "$infile".tif
 
 for i in `ls "$infile"_strip-*`; do
-    framescan $i
+    #framescan -S -f 3 $i
+    framescan -f 3 $i
 done
 
 mkdir -p "$infile"_frames

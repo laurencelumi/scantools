@@ -3,8 +3,8 @@
 # Licensing:
 #
 # Copyright © Laurence Lumi 2017
-# Licensed GNU General Public License v2
-# which can be found here https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html
+# Licensed GNU General Public License v3
+# which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
 #
 
 convert -colorspace LAB \

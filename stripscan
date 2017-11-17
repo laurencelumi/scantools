@@ -3,8 +3,8 @@
 # Licensing:
 #
 # Copyright © Laurence Lumi 2017
-# Licensed GNU General Public License v2
-# which can be found here https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html
+# Licensed GNU General Public License v3
+# which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
 #
 
 PROGNAME=`basename $0`
@@ -144,11 +144,12 @@ fi
 
 untrimmed="$tmpprefix"untrimmed
 #-d should be factor of the original scan and film type
+echo "the edge needs to be scalled"
 multicrop -u 3 -f 10 -c 100,10 -d 200 -e 10 $INFILE "$untrimmed".tif
 for i in `ls "$untrimmed"*.tif`; do
     strip_name="$outprefix""strip"${i#"$untrimmed"}
     echo strip:$strip_name
-    autotrim -f 10 -m inner $i $strip_name
+    autotrim -f 12 -m inner $i $strip_name
 done
 
 if [ "$showmask" -eq 0 ]; then
