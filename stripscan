@@ -19,14 +19,10 @@ USAGE: stripscan [-h or -help]
 
 OPTIONS:
 
--f          fuzz           fuzz value used a threshold for removing any white areas from the scan
-                           if brighest area of the film base is 75% then the threshold should be less than 25%
-                           expressed as (integer) percent 0 to 100;
-                           default=25
+-f          fuzz           fuzz value used a threshold for removing any the film holder, expressed as (integer) percent 0 to 100;
+                           default=10
 -m          mirror         flips the image after it has been cropped usefull if the negative was scanned emulsion down
 -r          rotate         rotates the image after being cropped, positive integer <= 360
--a          all boxes      include crops of all boxes, inluding the gaps between frames usefull for debugging
--e          extend         extends the crop X pixels
 -s          show mask      show how the mask was created usefull for debugging
 MESSAGE1
 exit 1
@@ -50,10 +46,16 @@ exit 1
 }
 
 scale=0
-rotate=90
+rotate=0
+fuzz=10
 tmpdir="./"
 showmask="0"
 tmpprefix=$tmpdir"_ss_"
+MAGICK_TEMPORARY_PATH="."
+export MAGICK_TEMPORARY_PATH
+#MAGICK_MEMORY_LIMIT="20Gib"
+#export MAGICK_MEMORY_LIMIT
+#export MAGICK_DEBUG=cache
 
 while [ $# -gt 0 ]
 do
@@ -83,6 +85,14 @@ do
                 message1
             fi
             ROTATE="-rotate $rotate +repage"
+            ;;
+        -f)    # fuzz
+            shift
+            fuzz="$1"
+            if [[ ! "$fuzz" =~ ^[0-9]+$ ]] || [ "$fuzz" -lt 0 -o "$fuzz" -gt 100 ]; then
+                echo "--- fuzz=$fuzz must be a positive integer value between 0 and 100 ---"
+                message1
+            fi
             ;;
         -)    # STDIN and end of arguments
             break
@@ -135,21 +145,31 @@ fi
 if [ $scale -ne 0 -o $rotate -ne 0 ]; then
     INFILE="$tmpprefix"resized_rotated.tif
     convert "$infile" $CSPACE $BINNING_CMD $ROTATE $MIRROR $INFILE
+    #convert -debug cache "$infile" $CSPACE $BINNING_CMD $ROTATE $MIRROR $INFILE
+else
+    INFILE=$infile
 fi
+
+framecolor=(`convert $INFILE -strip -crop 1000x1000+0+0 -blur 0x25 -format \
+"%[fx: minima.r * 100 ] "\
+"%[fx: minima.g * 100 ] "\
+"%[fx: minima.b * 100 ] " info:`)
+opaque="rgb("${framecolor[0]}"%,"${framecolor[1]}"%,"${framecolor[2]}"%)"
+echo opaque:$opaque
 
 if [ $showmask -eq 1 ]; then
     echo "need to revisit this the multicrop should be same as the one below"
-    multicrop -u 3 -f 10 -c 100,10 -d 200 -e 10 -m output $INFILE "$untrimmed".tif
+    multicrop -u 3 -f $fuzz -b $opaque -d 200 -e 10 -m output $INFILE "$untrimmed".tif
 fi
 
 untrimmed="$tmpprefix"untrimmed
 #-d should be factor of the original scan and film type
 echo "the edge needs to be scalled"
-multicrop -u 3 -f 10 -c 100,10 -d 200 -e 10 $INFILE "$untrimmed".tif
+multicrop -u 3 -f $fuzz -b $opaque -d 200 -e 10 $INFILE "$untrimmed".tif
 for i in `ls "$untrimmed"*.tif`; do
     strip_name="$outprefix""strip"${i#"$untrimmed"}
     echo strip:$strip_name
-    autotrim -f 12 -m inner $i $strip_name
+    autotrim -f 10 -m inner $i $strip_name
 done
 
 if [ "$showmask" -eq 0 ]; then
