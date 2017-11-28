@@ -6,6 +6,75 @@
 # Licensed GNU General Public License v3
 # which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
 #
+PROGNAME=`basename $0`
+message1()
+	{
+	echo >&2 ""
+	echo >&2 "$PROGNAME:" "$@"
+        cat << MESSAGE1
+USAGE: scantool [-S show ] [c1  color 1 ] [ -c2 color2 ]
+[ -c3 color3 ] [-c4 color4] [ -p profile ] [-m1 mono1 ] [ -m2 mono2 ] [ -g grade ] infile [outfile_prefix]
+USAGE: invertscan [-h or -help]
+
+OPTIONS:
+-S          show working    show intermediate working files for debugging
+
+MESSAGE1
+exit 1
+	}
+message2()
+{
+    echo >&2 ""
+    echo >&2 "$PROGNAME:" "$@"
+    cat  >&2 << MESSAGE2
+
+NAME: invertscan
+
+PURPOSE: to crop separate frames of a trimmed film strip
+
+
+Arguments:
+-S          show working    show intermediate working files for debugging
+
+MESSAGE2
+exit 1
+}
+
+while [ $# -gt 0 ]
+do
+    # get parameters
+    case "$1" in
+        -h|-help)    # help information
+            echo ""
+            message2
+            ;;
+        -S)	showtmp=1
+            ;;
+        -c1)	invertscan="c1"
+            ;;
+        -c2)	invertscan="c2"
+            ;;
+        -c3)	invertscan="c3"
+            ;;
+        -c4)	invertscan="c4"
+            ;;
+        -m1)	invertscan="m1"
+            ;;
+        -m2)	invertscan="m2"
+            ;;
+        -)    # STDIN and end of arguments
+            break
+            ;;
+        -*)    # any other - argument
+            echo "--- UNKNOWN OPTION ---"
+            message1
+            ;;
+        *)     # end of arguments
+            break
+            ;;
+    esac
+    shift   # next option
+done
 
 infile=${1%".tif"}
 
@@ -15,16 +84,39 @@ then
     exit 0
 fi
 
-#stripscan -s 8 -r 90 "$infile".tif
-stripscan -r 90 "$infile".tif
+if [ -z $invertscan ]
+then
 
-for i in `ls "$infile"_strip-*`; do
-    #framescan -S -f 3 $i
-    framescan -f 3 $i
-done
+    #stripscan -s 8 -r 90 "$infile".tif
+    stripscan -r 90 "$infile".tif
 
-mkdir -p "$infile"_frames
-mv "$infile"_strip*_frame* "$infile"_frames
+    for i in `ls "$infile"_strip-*`; do
+        #framescan -S -f 3 $i
+        framescan -f 3 $i
+    done
 
-mkdir -p "$infile"_strips
-mv "$infile"_strip-* "$infile"_strips
+    mkdir -p "$infile"_frames
+    mv "$infile"_strip*_frame* "$infile"_frames
+
+    if [ "$showtmp" -eq 0 ]; then
+        rm -f "$infile"_strip-* 
+    else
+        mkdir -p "$infile"_strips
+        mv "$infile"_strip-* "$infile"_strips
+    fi
+
+else
+    echo "as expected"
+
+    echo ls "$infile"_frames
+    for i in `ls "$infile"_frames`; do
+        #echo invertscan -"$invertscan" "$infile""_frames/"$i
+        invertscan -m -$invertscan "$infile""_frames/"$i
+        mkdir -p "$infile"_frames_P
+        mv "${i%.tif}"_P.tif "$infile"_frames_P
+    done
+
+    
+
+fi
+

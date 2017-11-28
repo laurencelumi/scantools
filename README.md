@@ -48,3 +48,7 @@ scantool:
     does it all in one go:
 
     for foo in n10_757_a_full4800_exp1_*.tif;do scantool $foo;done
+
+    or
+
+    for foo in n10_757_a_full4800_exp1_*.tif;do scantool -m2 $foo;done
