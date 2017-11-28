@@ -14,7 +14,7 @@ message1()
 	echo >&2 "$PROGNAME:" "$@"
         cat << MESSAGE1
 USAGE: framescan [-f fuzz ] [-m mirror ] [ -r rotate ]
-[ -a all boxes ] [-e extend] [-s show mask] [ -n number ] infile [outfile_prefix]
+[ -a all boxes ] [-e extend] [-S show mask] [ -n number ] infile [outfile_prefix]
 USAGE: framescan [-h or -help]
 
 OPTIONS:
@@ -30,7 +30,7 @@ OPTIONS:
 -r          rotate         rotates the image after being cropped, positive integer <= 360
 -a          all boxes      include crops of all boxes, inluding the gaps between frames usefull for debugging
 -e          extend         extends the crop X pixels
--s          show mask      show how the mask was created usefull for debugging
+-S          show mask      show how the mask was created usefull for debugging
 -n          frane number   the starting frame number to use file name defaults to #1
 MESSAGE1
 exit 1
@@ -219,7 +219,7 @@ for ((i=0;i<num;i++)); do
     fi
     echo converting $i XYxy $X $Y $x $y
     #not sure if CSPACE is necessary here but should not hurt
-    if [ "$allboxes" -eq 0 ]; then
+    if [ "$-crop allboxes" -eq 0 ]; then
         OUTFILE="$outprefix"frame-"$framenumber".tif
     else
         OUTFILE="$outprefix"frame_boxnumber-"$i".tif
@@ -229,5 +229,5 @@ for ((i=0;i<num;i++)); do
 done
 
 if [ "$showmask" -eq 0 ]; then
-    rm "$tmpprefix""$outprefix"*
+    rm -f "$tmpprefix""$outprefix"*
 fi
