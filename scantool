@@ -40,6 +40,8 @@ MESSAGE2
 exit 1
 }
 
+showtmp=0
+
 while [ $# -gt 0 ]
 do
     # get parameters
@@ -99,7 +101,7 @@ then
     mv "$infile"_strip*_frame* "$infile"_frames
 
     if [ "$showtmp" -eq 0 ]; then
-        rm -f "$infile"_strip-* 
+        rm -f "$infile"_strip-*
     else
         mkdir -p "$infile"_strips
         mv "$infile"_strip-* "$infile"_strips
@@ -116,7 +118,6 @@ else
         mv "${i%.tif}"_P.tif "$infile"_frames_P
     done
 
-    
 
 fi
 

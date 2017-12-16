@@ -1,0 +1,176 @@
+#!/bin/bash
+# the original script was written Alan Gibson who is the original copyright holder see here
+# http://im.snibgo.com/zipbats.htm
+#
+# From image $1
+# makes a graph with same where the width and height equals the original image width
+#
+#
+# Optional:
+#   %2 is background colour, can be "none" (default Black).
+#   %3 is grid (default 0 = no grid).
+#   %4 is whether to show clut below graph (default 1 = do show).
+#   %5 output file
+#   %6 limit output width [1000]
+
+#rem Can't use setInOut.
+#rem call %PICTBAT%setInOut %1 glc
+
+infile=$1
+
+if [ -z $infile ]; then
+    echo "must provide a filename"
+    exit 1
+fi
+if [ ! -f "$infile" -o ! -r "$infile" ]; then
+    echo "Cannot open: $infile"
+    exit 1
+fi
+
+echo $infile
+
+if [[ $infile =~ .*.tif$ ]]; then
+    outprefix=${infile%".tif"}_glc.png
+elif [[ $infile =~ .*.png$ ]]; then
+    outprefix=${infile%".png"}_g1c.png
+else
+    echo "not sure how to name the output file fix me"
+    exit 1
+fi
+
+BACKCOL=$2
+if [ -z $BACKCOL ]; then
+    BACKCOL="#000"
+    echo BACKCOL is $BACKCOL
+fi
+
+GRID_SPEC=$3
+if [ -z $GRID_SPEC ]; then
+    GRID_SPEC=0
+    echo GRID_SPEC is $GRID_SPEC
+fi
+
+SHOW_CLUT=4
+if [ -z $SHOW_CLUT ]; then
+    SHOW_CLUT=1
+    echo SHOW_CLUT is $SHOW_CLUT
+fi
+
+if [ -z $5 ]; then
+    OUTFILE=$outprefix
+else
+    OUTFILE=$5
+fi
+echo OUTFILE is $OUTFILE
+
+LIM_WW=$6
+if [ -z $LIM_WW ]; then
+    LIM_WW=1000
+    echo output width limited to $LIM_WW
+fi
+
+foo=(`identify -format "%w\n%h" $infile`)
+WW=${foo[0]}
+HH=${foo[1]}
+echo $WW and $HH
+
+if [ $WW -gt $LIM_WW ]; then
+    WW=$LIM_WW
+fi
+
+#set newH=256
+
+#if %WW% LSS 256 (
+    newH=$WW
+#)
+
+#fix the grid stuff later
+#if %GRID_SPEC%==0 (
+#  set S_GRID=
+#) else (
+#  call %PICTBAT%grid %WW% %newH% 20 4 . gray50
+#  set S_GRID=grid.png -compose Exclusion -composite
+#)
+
+echo WW=$WW newH=$newH
+
+#set /A newH4=4*%newH%
+newH4=$((4*$newH))
+
+echo $newH4
+
+#not sure what the /I does or how this would actually work
+#if /I %BACKCOL%==none (
+#  set sBACK=
+#) else (
+#  set sBACK=-background %BACKCOL% -compose Over -flatten
+#)
+#
+#set sBACK=-background %BACKCOL%
+
+sBACK="-background $BACKCOL"
+
+#set sBORD=-bordercolor Black -border 1x1
+#set sBORD=
+
+LINE_IMG="-separate +channel -scale "$WW"x"$newH4"^!"
+LINE_IMG+=" -size "$WW"x"$newH4" gradient:"
+LINE_IMG+=" -compose MinusDst -composite"
+LINE_IMG+=" -fill #fff +opaque #000"
+LINE_IMG+=" -resize "$WW"x"$newH"^!"
+LINE_IMG+=" -morphology edgeout diamond:1"
+
+echo LINE_IMG=$LINE_IMG
+
+#simply this for the moment
+#set /A SHOW_CLUT_HT=%WW%/10
+#if %SHOW_CLUT_HT% LSS 25 set SHOW_CLUT_HT=25
+
+#if %SHOW_CLUT%==0 (
+#  set sCLUT=
+#) else (
+#  set sCLUT= ^( %infile% -scale "%WW%x%SHOW_CLUT_HT%^!" ^) -append
+#)
+#having trouble with this so just ignore
+#sCLUT="$infile -scale "$WW"x25^! -append"
+
+#convert \
+convert \
+  $infile \
+  -colorspace sRGB\
+  -scale "$WW"x1^!\
+  -scale "$WW"x"$newH"^!\
+  \( -clone 0 \
+    \( -clone 0 \
+      -fill "#f00" -colorize 100 \
+    \) \
+    \( -clone 0 -channel R $LINE_IMG \) \
+    -delete 0 \
+    -alpha off \
+    -compose CopyOpacity -composite \
+  \) \
+  \( -clone 0 \
+    \( -clone 0 \
+      -fill "#0f0" -colorize 100 \
+    \) \
+    \( -clone 0 -channel G $LINE_IMG \) \
+    -delete 0 \
+    -alpha off \
+    -compose CopyOpacity -composite \
+  \) \
+  \( -clone 0 \
+    \( -clone 0 \
+      -fill "#00f" -colorize 100 \
+    \)\
+    \( -clone 0 -channel B $LINE_IMG \) \
+    -delete 0 \
+    -alpha off \
+    -compose CopyOpacity -composite \
+  \) \
+  -delete 0 \
+  $sBACK \
+  -compose Add -layers Flatten \
+  $S_GRID \
+  $sBORD \
+  $sCLUT \
+  $OUTFILE

@@ -114,13 +114,11 @@ tmpfile="$tmpprefix""${infile%.jpg}"
 
 #step to a linear capture
 
-convert $infile -colorspace RGB -type TrueColor "$tmpfile"_linear_cap.tif
+convert $infile -depth 16 -fx "Fy=((u)*100+16)/116;delta=6/29;Fy>delta?Fy^3:(Fy-16/116)3*delta^2" -type TrueColor "$tmpfile"_linear_cap.tif
 
 #next invert
 
 Jn_MIN=0.015
-BP=.005
-
 
 #convert "$tmpfile"_linear_cap.tif -strip $CSPACE  \
 #     +channel -fx " (u-$BP)/(1-$BP)" \
@@ -128,15 +126,16 @@ BP=.005
 
 
 convert "$tmpfile"_linear_cap.tif -strip \
-    -channel R -fx "10^(-(0.5534 * (Log(u/0.001107)-.3)))" \
-    -channel G -fx "10^(-(0.5534 * (Log(u/0.001107)-.3)))" \
-    -channel B -fx "10^(-(0.6384 * (Log(u/0.001107)-.3)))" \
-    +channel -fx "10^(log(u) - .35)" \
+    -channel R -fx "Fx=log(u/(1/128));10^-(.15+(Fx>0?.5534*Fx:0))" \
+    -channel G -fx "Fx=log(u/(1/128));10^-(.7+(Fx>0?.5534*Fx:0))" \
+    -channel B -fx "Fx=log(u/(1/128));10^-(.8+(Fx>0?.6384*Fx:0))" \
     -comment "$COMMENT" "$tmpfile"_inverted_only.tif
 
+convert "$tmpfile"_inverted_only.tif -set colorspace RGB -colorspace sRGB -comment "$COMMENT" "$tmpfile"_inverted_with_sRGB.tif
+
 #working with the step wedge
-convert "$tmpfile"_linear_cap.tif -strip \
-    -fx "10^(-(0.5 * Log(u/0.001107)))" \
-    -comment "$COMMENT" "$tmpfile"_inverted_only_singl_channel.tif
+#convert "$tmpfile"_linear_cap.tif -strip \
+#    -fx "10^(-(0.5 * Log(u/0.001107)))" \
+#    -comment "$COMMENT" "$tmpfile"_inverted_only_singl_channel.tif
 
 exit 0
