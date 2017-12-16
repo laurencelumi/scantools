@@ -1,0 +1,131 @@
+#!/bin/bash
+# the original script was written Alan Gibson who is the original copyright holder see here
+# http://im.snibgo.com/zipbats.htm
+#
+# From image $1 
+# makes a graph with where the width and height equals the original image width
+#
+#
+# Optional:
+#   $2 is background colour (default Khaki).
+#   $3 is grid (default 0 = no grid).
+#   $4 is output filename.
+#   $5 border colour ("none" = no border) [blue]
+
+
+#call %PICTBAT%setInOut %1 g1d
+
+infile=$1
+
+if [ -z $infile ]; then
+    echo "must provide a filename"
+    exit 1
+fi
+if [ ! -f "$infile" -o ! -r "$infile" ]; then
+    echo "Cannot open: $infile"
+    exit 1
+fi
+
+echo $infile
+
+if [[ $infile =~ .*.tif$ ]]; then
+    outprefix=${infile%".tif"}_g1d.png
+elif [[ $infile =~ .*.png$ ]]; then
+    outprefix=${infile%".png"}_g1d.png
+else
+    echo "not sure how to name the output file fix me"
+    exit 1
+fi
+
+echo outprefix: $outprefix
+
+BACKCOL=$2
+if [ -z $BACKCOL ]; then
+    #BACKCOL=Khaki
+    BACKCOL="rgb(176,224,230)"
+    echo BACKCOL is $BACKCOL
+fi
+
+GRID_SPEC=$3
+if [ -z $GRID_SPEC ]; then
+    GRID_SPEC=0
+    echo GRID_SPEC is $GRID_SPEC
+fi
+
+if [ -z $4 ]; then
+    OUTFILE=$outprefix
+else
+    OUTFILE=$4
+fi
+echo OUTFILE is $OUTFILE
+
+BORDCOL=$5
+if [ -z $BORDCOL ]; then
+    BORDCOL=blue
+    echo BORDCOL is $BORDCOL
+fi
+
+
+#set TXTFILE=%TEMP%\sp.txt
+
+#for /F "usebackq" %%L ^
+#in (`%IM%identify -format "WW=%%w\nHH=%%h" $infile`) ^
+#do set %%L
+
+foo=(`identify -format "%w\n%h" $infile`)
+WW=${foo[0]}
+HH=${foo[1]}
+echo $WW and $HH
+
+if [ $WW -gt 1000 ]; then
+    S_RESIZE="-resize 1000x$HH"
+    WW=1000
+fi
+
+#newH=256
+
+#if [ $WW -lt 256 ];then
+    newH=$WW
+#fi
+
+#fix the grid stuff later
+#if [ ! $GRID_SPEC = 0 ]; then
+#  call %PICTBAT%grid %WW% %newH% 4 3 1
+#  set S_GRID=grid.png -compose Exclusion -composite
+#)
+
+echo WW=$WW newH=$newH
+
+#set /A newH4=4*%newH%
+newH4=$((4*$newH))
+
+echo $newH4
+
+#if /I not "%BORDCOL%"=="none" set BRDR=-bordercolor %BORDCOL% -compose Over -border 1x1
+if [ ! $BORDCOL = none ]; then
+    BRDR="-bordercolor $BORDCOL -compose Over -border 1x1"
+fi
+
+
+#echo convert \
+convert \
+  $infile \
+  -scale "$WW"x1^! \
+  -scale "$WW"x"$newH4"^! \
+  +write mpr:SCLE \
+  -size "$WW"x"$newH4" gradient: \
+  -compose MinusDst -composite \
+  -threshold 0 \
+  -negate \
++write g.png \
+  mpr:SCLE \
+  +swap \
+  -compose CopyOpacity -composite \
+  -resize "$WW"x"$newH"^! \
+  -background $BACKCOL \
+  -compose Over -layers Flatten \
+  $S_GRID \
+  $BRDR \
+  $OUTFILE
+
+rm g.png

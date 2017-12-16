@@ -65,8 +65,8 @@ exit 1
 }
 
 tmpdir="./"
-allboxes="0"
-showmask="0"
+allboxes=0
+showmask=0
 tmpprefix=$tmpdir"_fs_"
 borderfuzz=25
 fuzz=2
@@ -219,7 +219,7 @@ for ((i=0;i<num;i++)); do
     fi
     echo converting $i XYxy $X $Y $x $y
     #not sure if CSPACE is necessary here but should not hurt
-    if [ "$-crop allboxes" -eq 0 ]; then
+    if [ "$allboxes" -eq 0 ]; then
         OUTFILE="$outprefix"frame-"$framenumber".tif
     else
         OUTFILE="$outprefix"frame_boxnumber-"$i".tif

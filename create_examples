@@ -1,0 +1,51 @@
+#!/bin/bash
+
+rm -f e_*.png
+
+convert -size 1024x100 xc: -channel R -fx "i/w" -separate e_linear_gradient_10bit.png
+convert -size 1024x100 xc: -channel R -fx "(i>>2)/(w>>2)" -separate e_linear_gradient_8bit.png
+convert -size 16384x100 xc: -channel R -fx "i/w" -separate e_linear_gradient_14bit.png
+
+#this is the correct gamma for LAB lightness forward transformation
+#slope 903.3 is almost correct
+#convert -size 1024x100 xc: -channel R -fx "i/w>0.008856?(116*((i/w)^(1/3))-16)/100:903.3*(i/w)/100" -separate e_non_linear_lab_gradient_10bit.png
+#this is the formula spot on
+convert -size 1024x100 xc: -channel R -fx "i/w>0.008856?(116*((i/w)^(1/3))-16)/100:(116*(7.787*(i/w)+16/116)-16)/100" -separate e_non_linear_lab_gradient_10bit.png
+convert -size 1024x100 xc: -channel R -fx "(i>>6)/(w>>6)>0.008856?(116*(((i>>6)/(w>>6))^(1/3))-16)/100:903.3*((i>>6)/(w>>6))/100" -separate e_non_linear_lab_gradient_4bit.png
+
+#this is the correct gamma for sRGB
+convert -set colorspace RGB -size 1024x100 xc: -channel R -fx "i/w" -separate -set colorspace RGB -colorspace sRGB e_non_linear_sRGB_gradient_10bit.png
+convert -set colorspace RGB -size 1024x100 xc: -channel R -fx "(i>>6)/(w>>6)" -separate -set colorspace RGB -colorspace sRGB e_non_linear_sRGB_gradient_4bit.png
+
+#this is the correct gamma for LAB lightness in reverse transformation
+convert -size 1024x100 xc: -channel R -fx "Fy=((i/w)*100+16)/116;delta=6/29;Fy>delta?Fy^3:(Fy-16/116)3*delta^2" -separate e_non_linear_reverse_lab_gradient_10bit.png
+
+#1024 is a 10 stop range
+convert e_non_linear_reverse_lab_gradient_10bit.png -fx "(u>0?((1/1024)/u)^.61:1)" e_negative.png
+
+#convert to positive
+convert e_negative.png -fx "(u>0?((1/70)/u)^(1/.61):1)" e_positive.png
+
+#apply the LAB forward gamma
+convert e_positive.png -channel R -fx "u>0.008856?(116*((u)^(1/3))-16)/100:(116*(7.787*(u)+16/116)-16)/100" -separate e_final.png
+
+#convert with negate
+convert e_negative.png -fx "(1-u)" e_negate.png
+#convert e_negative.png -fx "((1-u))^10" e_negate_gamma10.png
+#convert e_negative.png -fx "((1-u))^4" e_negate_gamma4.png
+#convert e_negative.png -fx "2((1-u))^4" e_negate_gamma4_slope2.png
+#convert e_negative.png -fx ".5((1-u))^2" e_negate_gamma2_slope_pt5.png
+#convert e_negative.png -fx "((1-u))^20" e_negate_gamma20.png
+
+
+
+convert e_non_linear_reverse_lab_gradient_10bit.png -channel R -fx "Fx=log(u/(1/1024));10^-(.15+(Fx>0?.61*Fx:0))" -separate e_negative_with_filmbase.png
+convert e_negative_with_filmbase.png -set colorspace RGB -colorspace sRGB e_negative_with_filmbase_for_viewing.png
+
+for foo in `ls e_*png`;do 
+#echo $foo
+graph1d $foo
+done
+
+
+exit 0
