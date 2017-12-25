@@ -1,6 +1,7 @@
 #!/bin/bash
 
 rm -f e_*.png
+rm -f ec_*.png
 
 convert -size 1024x100 xc: -channel R -fx "i/w" -separate e_linear_gradient_10bit.png
 convert -size 1024x100 xc: -channel R -fx "(i>>2)/(w>>2)" -separate e_linear_gradient_8bit.png
@@ -37,14 +38,24 @@ convert e_negative.png -fx "(1-u)" e_negate.png
 #convert e_negative.png -fx ".5((1-u))^2" e_negate_gamma2_slope_pt5.png
 #convert e_negative.png -fx "((1-u))^20" e_negate_gamma20.png
 
-
-
 convert e_non_linear_reverse_lab_gradient_10bit.png -channel R -fx "Fx=log(u/(1/1024));10^-(.15+(Fx>0?.61*Fx:0))" -separate e_negative_with_filmbase.png
 convert e_negative_with_filmbase.png -set colorspace RGB -colorspace sRGB e_negative_with_filmbase_for_viewing.png
 
 for foo in `ls e_*png`;do 
 #echo $foo
 graph1d $foo
+done
+
+convert -size 1024x100 xc: -fx "i/w" -channel R -fx "u^2.4" -channel B -fx "1.1*u^2.4" -channel G -fx "1.01*u^2.4"  ec_blue_layer_slope_only.png
+convert -size 1024x100 xc: -fx "i/w" -channel R -fx "u^2.4" -channel B -fx "1.1*u^2.4-.1" -channel G -fx "1.01*u^2.4"  ec_blue_layer_slope_plus_lift.png
+convert -size 1024x100 xc: -fx "i/w" -channel R -fx "u^2.4" -channel B -fx "1.1*u^2-.1" -channel G -fx "1.01*u^2.4"  ec_final.png
+
+#convert ec_linear_gradient_10bit.png -negate ec_linear_gradient_10bit_negate.png
+#convert -size 1024x100 xc: -fx "i/w" -channel B -fx "u^1" -channel R -fx "(.9*u)^0.768053225" -channel G -fx "(.89*u)^0.768053225" +channel ec_linear_gradient_10bit_with_blue_gamma.png
+
+for foo in `ls ec_*png`;do 
+#echo $foo
+graphlinecol $foo
 done
 
 

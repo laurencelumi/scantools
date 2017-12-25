@@ -161,6 +161,8 @@ do
             ;;
         -c4)	approach="c_rethink"
             ;;
+        -c5)	approach="c_invert_only_nothing_else"
+            ;;
         -m1)	approach="m_invert_then_BP_then_gamma"
             ;;
         -m2)	approach="m_invert_gamma_then_BP"
@@ -327,14 +329,37 @@ B_HIGHLIGHT=$3
 
     #convert per cfs-244
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "($R_HIGHLIGHT/u)^$R_GAMMA" \
-        -channel G -fx "($G_HIGHLIGHT/u)^$G_GAMMA" \
-        -channel B -fx "($B_HIGHLIGHT/u)^$B_GAMMA" \
+        -channel R -fx "u>0?($R_HIGHLIGHT/u)^$R_GAMMA:1" \
+        -channel G -fx "u>0?($G_HIGHLIGHT/u)^$G_GAMMA:1" \
+        -channel B -fx "u>0?($B_HIGHLIGHT/u)^$B_GAMMA:1" \
         -colorspace sRGB \
         $MIRROR -comment "$COMMENT" $ZIP "$outfile"
 
 fi
 
+if [ $approach = "c_invert_only_nothing_else" ]; then
+    echo approach = $approach
+
+# calculate the values of the highlights
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+"%[fx: minima.r ] "\
+"%[fx: minima.g ] "\
+"%[fx: minima.b ] "\
+  info:`
+
+R_HIGHLIGHT=$1
+G_HIGHLIGHT=$2
+B_HIGHLIGHT=$3
+
+    #convert per cfs-244
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "($R_HIGHLIGHT/u)" \
+        -channel G -fx "($G_HIGHLIGHT/u)" \
+        -channel B -fx "($B_HIGHLIGHT/u)" \
+        -colorspace sRGB \
+        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+
+fi
 
 if [ $approach = "m_invert_gamma_then_BP" ]; then
     echo approach = $approach

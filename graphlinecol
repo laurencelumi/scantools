@@ -50,7 +50,7 @@ if [ -z $GRID_SPEC ]; then
     echo GRID_SPEC is $GRID_SPEC
 fi
 
-SHOW_CLUT=4
+SHOW_CLUT=$4
 if [ -z $SHOW_CLUT ]; then
     SHOW_CLUT=1
     echo SHOW_CLUT is $SHOW_CLUT
@@ -133,6 +133,8 @@ echo LINE_IMG=$LINE_IMG
 #)
 #having trouble with this so just ignore
 #sCLUT="$infile -scale "$WW"x25^! -append"
+
+sCLUT="$infile -append"
 
 #convert \
 convert \
