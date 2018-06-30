@@ -30,6 +30,12 @@ convert e_negative.png -fx "(u>0?((1/70)/u)^(1/.61):1)" e_positive.png
 #apply the LAB forward gamma
 convert e_positive.png -channel R -fx "u>0.008856?(116*((u)^(1/3))-16)/100:(116*(7.787*(u)+16/116)-16)/100" -separate e_final.png
 
+
+convert e_linear_gradient_10bit.png -fx "(u>0?((1/1024)/u)^.61:1)" e_negative_from_lin.png
+convert e_negative_from_lin.png -fx "(u>0?((1/69)/u)^(4):1)" e_positive_g4.png
+
+convert e_negative_from_lin.png -fx "(u>0?((1/69)/u):w^(4):1)" e_positive_g4.png
+
 #convert with negate
 convert e_negative.png -fx "(1-u)" e_negate.png
 #convert e_negative.png -fx "((1-u))^10" e_negate_gamma10.png
@@ -40,6 +46,8 @@ convert e_negative.png -fx "(1-u)" e_negate.png
 
 convert e_non_linear_reverse_lab_gradient_10bit.png -channel R -fx "Fx=log(u/(1/1024));10^-(.15+(Fx>0?.61*Fx:0))" -separate e_negative_with_filmbase.png
 convert e_negative_with_filmbase.png -set colorspace RGB -colorspace sRGB e_negative_with_filmbase_for_viewing.png
+
+convert e_linear_gradient_10bit.png -fx "(u>0?((1/1024)/u)^.61:1)" e_negative_from_lin.png
 
 for foo in `ls e_*png`;do 
 #echo $foo
