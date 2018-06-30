@@ -84,7 +84,7 @@ echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
 
 removemask()
 {
-#removes the mask 
+#removes the mask
 
 #rewrite this with -evaluate
 convert "$infile[0]" -strip $CSPACE  \
@@ -137,6 +137,9 @@ M_GAMMA=1.625 #ISO film gamma
 R_GAMMA=1.807 #Portra 400 as default
 G_GAMMA=1.817 #Portra 400 as default
 B_GAMMA=1.563 #Portra 400 as default
+#R_GAMMA=1.662 #ultra 50 as test
+#G_GAMMA=1.548 #ultra 50 as test
+#B_GAMMA=1.378 #ultra 50 as test
 B_POINT=0.005 #not sure what do with this
 PROF_DIR=$HOME/.scantools
 ZIP="-compress zip"
@@ -162,6 +165,12 @@ do
         -c4)	approach="c_rethink"
             ;;
         -c5)	approach="c_invert_only_nothing_else"
+            ;;
+        -c6)	approach="c_invert_dpx"
+            ;;
+        -c7)	approach="c_rethink_2"
+            ;;
+        -c8)	approach="c_printing_density"
             ;;
         -m1)	approach="m_invert_then_BP_then_gamma"
             ;;
@@ -317,7 +326,7 @@ if [ $approach = "c_rethink" ]; then
     echo approach = $approach
 
 # calculate the values of the highlights
-eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 10x7 -format \
 "%[fx: minima.r ] "\
 "%[fx: minima.g ] "\
 "%[fx: minima.b ] "\
@@ -358,6 +367,247 @@ B_HIGHLIGHT=$3
         -channel B -fx "($B_HIGHLIGHT/u)" \
         -colorspace sRGB \
         $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+if [ $approach = "c_invert_dpx" ]; then
+    echo approach = $approach
+
+# calculate the values of the film base
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+  info:`
+
+R_BASE=$1
+G_BASE=$2
+B_BASE=$3
+
+    #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DOB=-log(u)-(-log($1));(95+500*DOB)/1024)" \
+        -channel G -fx "DOB=-log(u)-(-log($2));(95+500*DOB)/1024" \
+        -channel B -fx "DOB=-log(u)-(-log($3));(95+500*DOB)/1024" \
+        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+
+    #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DOB=-log(u)-(-log($1));dpx=95+500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel G -fx "DOB=-log(u)-(-log$2));dpx=95+500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel B -fx "DOB=-log(u)-(-log($3));dpx=95+500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -colorspace sRGB \
+        $MIRROR -comment "$COMMENT" $ZIP dpx_lin_"$outfile"
+
+    #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DOB=-log(u)-(-log($1));dpx=500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel G -fx "DOB=-log(u)-(-log$2));dpx=500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel B -fx "DOB=-log(u)-(-log($3));dpx=500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -colorspace sRGB \
+        $MIRROR -comment "$COMMENT" $ZIP dpx_lin_2"$outfile"
+
+fi
+
+if [ $approach = "c_rethink_2" ]; then
+    echo approach = $approach
+
+#calcmask
+
+# calculate the values to remove the mask
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+"%[fx: minima.r ] "\
+"%[fx: minima.g ] "\
+"%[fx: minima.b ] "\
+"%[fx: minima.r/maxima.r ] "\
+"%[fx: minima.g/maxima.g ] "\
+"%[fx: minima.b/maxima.b ] "\
+  info:`
+
+echo Results are:
+echo Red: $1 $4 $7
+echo Green: $2 $5 $8
+echo Blue : $3 $6 $9
+
+# calculate the values to remove the mask
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 -format \
+"%[fx: -log(maxima.r) ] "\
+"%[fx: -log(maxima.g) ] "\
+"%[fx: -log(maxima.b) ] "\
+"%[fx: -log(minima.r) ] "\
+"%[fx: -log(minima.g) ] "\
+"%[fx: -log(minima.b) ] "\
+"%[fx: -log(minima.r) - (-log(maxima.r)) ] "\
+"%[fx: -log(minima.g) - (-log(maxima.g)) ] "\
+"%[fx: -log(minima.b) - (-log(maxima.b)) ] "\
+  info:`
+
+echo LOG Results are:
+echo Red: $1 $4 $7
+echo Green: $2 $5 $8
+echo Blue : $3 $6 $9
+
+MAXD=$9
+
+#eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+# calculate the values of the film base
+eval set -- `convert "$infile[0]" $CSPACE -strip -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+  info:`
+
+R_BASE=$1
+G_BASE=$2
+B_BASE=$3
+
+#R_BASE=0.664352
+#G_BASE=0.677719
+#B_BASE=0.641433
+
+
+echo RGB: $R_BASE $G_BASE $B_BASE
+
+# calculate the values of the film base
+#eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x7 -format \
+#"%[fx: maxima.r ] "\
+#"%[fx: maxima.g ] "\
+#"%[fx: maxima.b ] "\
+#  info:`
+
+#R_BASE=$1
+#G_BASE=$2
+#B_BASE=$3
+
+#echo RGB: $R_BASE $G_BASE $B_BASE
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+#    convert $infile[0] -strip $CSPACE \
+#        -channel R -fx "DOB=log(1/u)-log(1/$1);debug(DOB);debug(1/10^(DOB*.6));(1/10^(DOB*.6))" \
+#        -channel G -fx "DOB=log(1/u)-log(1/$2);;(1/10^(DOB*.6))" \
+#        -channel B -fx "DOB=log(1/u)-log(1/$3);;(1/10^(DOB*.6))" \
+#        -colorspace sRGB \
+#        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+#    convert $infile[0] -strip $CSPACE \
+#       -channel R -fx "DOB=log(1/u)-log(1/$1);;(10^(DOB*.6))*.1" \
+#        -channel G -fx "DOB=log(1/u)-log(1/$2);;(10^(DOB*.6))*.1" \
+#        -channel B -fx "DOB=log(1/u)-log(1/$3);;(10^(DOB*.6))*.1" \
+#        -colorspace sRGB \
+#        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DOB=log(1/u)-log(1/$1);(10^((DOB-$MAXD)*.6))" \
+        -channel G -fx "DOB=log(1/u)-log(1/$2);(10^((DOB-$MAXD)*.6))" \
+        -channel B -fx "DOB=log(1/u)-log(1/$3);(10^((DOB-$MAXD)*.6))" \
+        -colorspace sRGB \
+        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DOB=log(1/u)-log(1/$1);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
+        -channel G -fx "DOB=log(1/u)-log(1/$2);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
+        -channel B -fx "DOB=log(1/u)-log(1/$3);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
+        -colorspace sRGB \
+        $MIRROR -comment "$COMMENT" $ZIP _"$outfile"
+
+fi
+
+if [ $approach = "c_printing_density" ]; then
+    echo approach = $approach
+
+#scale the to match printing density
+newfile=tmp_"$infile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+#    convert $infile[0] -strip $CSPACE \
+#        -channel R -fx "u^1.7" \
+#        -channel G -fx "u^1.15" \
+#        $MIRROR -comment "$COMMENT" $ZIP "$newfile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "u^1.12" \
+        -channel G -fx "u^1.05" \
+        $MIRROR -comment "$COMMENT" $ZIP "$newfile"
+
+    #kodak 400
+    #convert $infile[0] -strip $CSPACE \
+    #    -channel R -fx "u^1.6" \
+    #    -channel G -fx "u^1.15" \
+    #    $MIRROR -comment "$COMMENT" $ZIP "$newfile"
+
+#calcmask
+
+
+
+# calculate the values to remove the mask
+eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 100x5 -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+"%[fx: minima.r ] "\
+"%[fx: minima.g ] "\
+"%[fx: minima.b ] "\
+"%[fx: minima.r/maxima.r ] "\
+"%[fx: minima.g/maxima.g ] "\
+"%[fx: minima.b/maxima.b ] "\
+  info:`
+
+echo LOG Results are:
+echo Red: $1 $4 $7
+echo Green: $2 $5 $8
+echo Blue : $3 $6 $9
+
+# calculate the values to remove the mask
+eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 100x5 -format \
+"%[fx: -log(maxima.r) ] "\
+"%[fx: -log(maxima.g) ] "\
+"%[fx: -log(maxima.b) ] "\
+"%[fx: -log(minima.r) ] "\
+"%[fx: -log(minima.g) ] "\
+"%[fx: -log(minima.b) ] "\
+"%[fx: -log(minima.r) - (-log(maxima.r)) ] "\
+"%[fx: -log(minima.g) - (-log(maxima.g)) ] "\
+"%[fx: -log(minima.b) - (-log(maxima.b)) ] "\
+  info:`
+
+echo LOG Results are:
+echo Red: $1 $4 $7
+echo Green: $2 $5 $8
+echo Blue : $3 $6 $9
+
+MAXD=$9
+
+#eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 0x7 -format \
+# calculate the values of the film base
+eval set -- `convert "$newfile[0]" $CSPACE -strip -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+  info:`
+
+R_BASE=$1
+G_BASE=$2
+B_BASE=$3
+
+echo RGB: $R_BASE $G_BASE $B_BASE
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $newfile[0] -strip $CSPACE \
+        -channel R -fx "DOB=log(1/u)-log(1/$1);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
+        -channel G -fx "DOB=log(1/u)-log(1/$2);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
+        -channel B -fx "DOB=log(1/u)-log(1/$3);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
+        -colorspace sRGB \
+        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+
+
+    #rm $newfile
 
 fi
 
