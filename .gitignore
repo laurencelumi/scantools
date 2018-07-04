@@ -1,2 +1,6 @@
 
 screenshots/
+
+*.swp
+
+research/
