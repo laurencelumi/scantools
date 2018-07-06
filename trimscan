@@ -1,0 +1,236 @@
+#!/bin/bash
+#
+# Licensing:
+#
+# Copyright © Laurence Lumi 2017
+# Licensed GNU General Public License v3
+# which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
+#
+
+PROGNAME=`basename $0`
+message1()
+	{
+	echo >&2 ""
+	echo >&2 "$PROGNAME:" "$@"
+        cat << MESSAGE1
+USAGE: framescan [-f fuzz ] [-m mirror ] [ -r rotate ]
+[ -a all boxes ] [-e extend] [-S show mask] [ -n number ] infile [outfile_prefix]
+USAGE: framescan [-h or -help]
+
+OPTIONS:
+
+-bf         borderfuzz     fuzz value used a threshold for removing any white areas from the scan
+                           if brighest area of the film base is 75% then the threshold should be less than 25%
+                           expressed as (integer) percent 0 to 100;
+                           default=25
+-f          fuzz           fuzz value used a threshold for identify the gaps in the frames
+                           expressed as (integer) percent 0 to 100;
+                           default=2
+-m          mirror         flips the image after it has been cropped usefull if the negative was scanned emulsion down
+-r          rotate         rotates the image after being cropped, positive integer <= 360
+-a          all boxes      include crops of all boxes, inluding the gaps between frames usefull for debugging
+-e          extend         extends the crop X pixels
+-S          show mask      show how the mask was created usefull for debugging
+-n          frane number   the starting frame number to use file name defaults to #1
+MESSAGE1
+exit 1
+	}
+message2()
+{
+    echo >&2 ""
+    echo >&2 "$PROGNAME:" "$@"
+    cat  >&2 << MESSAGE2
+
+NAME: framescan
+
+PURPOSE: to crop separate frames of a trimmed film strip
+
+
+Arguments:
+
+-bf         borderfuzz     fuzz value used a threshold for removing any white areas from the scan
+                           if brighest area of the film base is 75% then the threshold should be less than 25%
+                           expressed as (integer) percent 0 to 100;
+                           default=25
+-f          fuzz           fuzz value used a threshold for identify the gaps in the frames
+                           expressed as (integer) percent 0 to 100;
+                           default=2
+-m          mirror         flips the image after it has been cropped usefull if the negative was scanned emulsion down
+-r          rotate         rotates the image after being cropped, positive integer <= 360
+-a          all boxes      include crops of all boxes, inluding the gaps between frames usefull for debugging
+-e          extend         extends the crop X pixels
+-S          show mask      show how the mask was created usefull for debugging
+MESSAGE2
+exit 1
+}
+
+tmpdir="./"
+allboxes=0
+showmask=0
+tmpprefix=$tmpdir"_fs_"
+borderfuzz=25
+fuzz=2
+framenumber=1
+
+while [ $# -gt 0 ]
+do
+    # get parameters
+    case "$1" in
+        -h|-help)    # help information
+            echo ""
+            message2
+            ;;
+        -S)	showmask=1
+            ;;
+        -a)	allboxes=1
+            ;;
+        -m)	MIRROR="-flop"
+            ;;
+        -r)    # rotate
+            shift
+            rotate="$1"
+            if [[ ! "$rotate" =~ ^[0-9]+$ ]] || [ "$rotate" -lt 0 -o "$rotate" -gt 360 ]; then
+                echo "--- rotate=$rotate must be a positive integer value between 0 and 360 ---"
+                message1
+            fi
+            ROTATE="-rotate $rotate +repage"
+            ;;
+        -bf)    # borderfuzz
+            shift
+            borderfuzz="$1"
+            if [[ ! "$borderfuzz" =~ ^[0-9]+$ ]] || [ "$borderfuzz" -lt 0 -o "$borderfuzz" -gt 100 ]; then
+                echo "--- borderfuzz=$borderfuzz must be a positive integer value between 0 and 100 ---"
+                message1
+            fi
+            ;;
+        -f)    # fuzz
+            shift
+            fuzz="$1"
+            if [[ ! "$fuzz" =~ ^[0-9]+$ ]] || [ "$fuzz" -lt 0 -o "$fuzz" -gt 100 ]; then
+                echo "--- fuzz=$fuzz must be a positive integer value between 0 and 100 ---"
+                message1
+            fi
+            ;;
+        -n)    # number
+            shift
+            framenumber="$1"
+            if [[ ! "$framenumber" =~ ^[0-9]+$ ]]; then
+                echo "--- framenumber=$framenumber must be a integer value  ---"
+                message1
+            fi
+            ;;
+        -)    # STDIN and end of arguments
+            break
+            ;;
+        -*)    # any other - argument
+            echo "--- UNKNOWN OPTION ---"
+            message1
+            ;;
+        *)     # end of arguments
+            break
+            ;;
+    esac
+    shift   # next option
+done
+
+infile=$1
+outprefix=$2
+
+if [ -z $infile ]
+then
+    echo "must provide a filename"
+    message2
+fi
+if [ ! -f "$infile" -o ! -r "$infile" ]; then
+    echo "Cannot open: $infile"
+    exit 1
+fi
+
+if [ -z $outprefix ]; then
+    outprefix=${infile%".tif"}_
+    echo outprefix: $outprefix
+else
+    outprefix=${outprefix%".tif"}_
+fi
+
+if [[ $infile =~ .*.tif$ ]]; then
+    echo assuming the file being tif is saved in a linear colorspace, even though the metadata says otherwise 
+    CSPACE="-set colorspace RGB"
+fi
+
+XY=`convert $infile -format "%wx%h" info:`
+#echo $XY
+#remove any sprocket holes or missing bits of film use a default of 25% this mean the film base myust be darker than 25%
+set -x
+convert $infile -fuzz "$borderfuzz"% -fill black -opaque white "$tmpprefix""$outprefix"0.png
+convert "$tmpprefix""$outprefix"0.png -scale x1! -scale $XY! "$tmpprefix""$outprefix"1.png
+gray="gray("
+strip_color+=`convert "$tmpprefix""$outprefix"1.png -strip -blur 7x7 -format "%[fx: minima.intensity * 100 ]" info:`
+gray+=$strip_color
+gray+="%)"
+#echo $strip_color
+echo $gray
+stripcolor=(`convert "$tmpprefix""$outprefix"1.png -strip -blur 7x7 -format \
+"%[fx: minima.r * 100 ] "\
+"%[fx: minima.g * 100 ] "\
+"%[fx: minima.b * 100 ] " info:`)
+#num=${#stripcolor[*]}
+#echo num:$num
+#for ((i=0;i<num;i++)); do
+#    echo SC:${stripcolor[$i]}
+#done
+opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
+echo opaque:$opaque
+#convert "$tmpprefix""$outprefix"1.png -fuzz "$fuzz"% -fill white -opaque "$opaque" -fill black +opaque white "$tmpprefix""$outprefix"2.png
+convert "$tmpprefix""$outprefix"1.png -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpprefix""$outprefix"2.png
+#morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
+convert "$tmpprefix""$outprefix"2.png -morphology open "5x1:0,1,1,1,0" "$tmpprefix""$outprefix"3.png
+set +x
+
+arr=()
+OLD_IFS=$IFS
+IFS=$'\n'
+arr=(`convert "$tmpprefix""$outprefix"3.png -type bilevel \
+-define connected-components:verbose=true \
+-define connected-components:mean-color=true \
+-connected-components 4 \
+null: | sed 's/^[ ]*//' | tail -n +2`)
+IFS=$OLD_IFS
+num=${#arr[*]}
+#echo "num=$num"
+
+echo cropping frames
+for ((i=0;i<num;i++)); do
+    color=`echo "${arr[$i]}" | cut -d\  -f5`
+    bbox=`echo "${arr[$i]}" | cut -d\  -f2`
+    bbox=`echo $bbox  | sed 's/[+x]/:/g'`
+    array=(${bbox//:/ })
+    #    for j in "${!array[@]}"
+    #    do
+    #        echo "$i=>${array[j]}"
+    #    done;
+    X="${array[0]}"
+    Y="${array[1]}"
+    x="${array[2]}"
+    y="${array[3]}"
+    #X=$((X+25))
+    #Y=$((Y+25))
+
+    if [ "$allboxes" -eq 0 ] && [ "$color" = "gray(0)" ]; then
+        echo skipping $i XYxy $X $Y $x $y
+        continue;
+    fi
+    echo converting $i XYxy $X $Y $x $y
+    #not sure if CSPACE is necessary here but should not hurt
+    if [ "$allboxes" -eq 0 ]; then
+        OUTFILE="$outprefix"frame-"$framenumber".tif
+    else
+        OUTFILE="$outprefix"frame_boxnumber-"$i".tif
+    fi
+    framenumber=$((framenumber+1))
+    convert $infile $CSPACE +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $MIRROR $ROTATE $OUTFILE 
+done
+
+if [ "$showmask" -eq 0 ]; then
+    rm -f "$tmpprefix""$outprefix"*
+fi
