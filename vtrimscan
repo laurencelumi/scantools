@@ -33,6 +33,7 @@ OPTIONS:
 -d          debug          provided usefull debuging and leaves intermediate files behind
 -n          frame number   the starting frame number to use in file name; defaults to #1
 -p          pixelwidth     the smallest amount of horizontal pixel that could make a usefull image defaults: 100
+-e          extend         extend crop on each side in pixels; integer; default=0  
 MESSAGE1
 exit 1
 	}
@@ -66,6 +67,7 @@ filmbase=25
 fuzz=2
 framenumber=1
 pixel=100
+extend=0
 
 if [ "$1" = "holder" ]; then
     mode="holder"
@@ -108,6 +110,14 @@ do
             pixel="$1"
             if [[ ! "$pixel" =~ ^[0-9]+$ ]]; then
                 echo "--- pixel=$pixel must be a positive integer value ---"
+                message1
+            fi
+            ;;
+        -e)    # extend
+            shift
+            extend="$1"
+            if [[ ! "$extend" =~ ^[0-9]+$ ]]; then
+                echo "--- extend=$extend must be a positive integer value ---"
                 message1
             fi
             ;;
@@ -249,6 +259,11 @@ for ((i=0;i<num;i++)); do
     fi
     x="${array[2]}"
     y="${array[3]}"
+    
+    if [ $extend -ne 0 ]; then
+        X=$((X-($extend*2)))
+        x=$((x+$extend))
+    fi
 
     if [ "$debug" -lt 2 ] && [ "$color" = "gray(0)" ]; then
         DEBUG echo skipping $i XYxy $X $Y $x $y
