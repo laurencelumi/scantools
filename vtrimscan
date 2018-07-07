@@ -170,8 +170,7 @@ else
 fi
 
 #first orientate the image if necessary
-
-if [ ! -z $MIRROR ] || [ ! -z $FLIP ] || [ ! -z $ROTATE ]; then
+if [ ! -z "$MIRROR" ] || [ ! -z "$FLIP" ] || [ ! -z "$ROTATE" ]; then
     echo "re orientating scan before processing"
     convert $infile $MIRROR $ROTATE $FLIP "$tmpprefix""$infile"
     infile="$tmpprefix""$infile"
@@ -200,10 +199,14 @@ else
     convert "$tmpfile0" -scale x1! "$tmpprefix""$outprefix"1.png
 fi
 
-stripcolor=(`convert "$tmpprefix""$outprefix"1.png -strip -blur 7x7 -format \
-"%[fx: minima.r * 100 ] "\
-"%[fx: minima.g * 100 ] "\
-"%[fx: minima.b * 100 ] " info:`)
+if [ $mode = "gap" ]; then 
+    stripcolor=(`convert "$tmpprefix""$outprefix"1.png -strip -blur 7x7 -format \
+        "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
+else
+    stripcolor=(`convert "$tmpprefix""$outprefix"1.png -strip -blur 7x7 -format \
+        "%[fx: minima.r * 100 ] %[fx: minima.g * 100 ] %[fx: minima.b * 100 ] " info:`)
+fi
+
 #num=${#stripcolor[*]}
 #echo num:$num
 #for ((i=0;i<num;i++)); do
