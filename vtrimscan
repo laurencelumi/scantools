@@ -32,6 +32,7 @@ OPTIONS:
 -r          rotate         rotates the scan before it is processed, positive integer <= 360
 -d          debug          provided usefull debuging and leaves intermediate files behind
 -n          frame number   the starting frame number to use in file name; defaults to #1
+-p          pixelwidth     the smallest amount of horizontal pixel that could make a usefull image defaults: 100
 MESSAGE1
 exit 1
 	}
@@ -55,7 +56,7 @@ exit 1
 }
 function DEBUG()
 {
- [ "$debug" -eq 1 ] &&  $@
+ [ ! "$debug" -eq 0 ] &&  $@
 }
 
 tmpdir="./"
@@ -64,6 +65,7 @@ tmpprefix=$tmpdir"_vt_"
 filmbase=25
 fuzz=2
 framenumber=1
+pixel=100
 
 if [ "$1" = "holder" ]; then
     mode="holder"
@@ -86,6 +88,8 @@ do
             ;;
         -d)	debug=1
             ;;
+        -dd)	debug=2
+            ;;
         -m)	MIRROR="-flop"
             ;;
         -flip)	FLIP="-flip"
@@ -98,6 +102,14 @@ do
                 message1
             fi
             ROTATE="-rotate $rotate +repage"
+            ;;
+        -p)    # pixel
+            shift
+            pixel="$1"
+            if [[ ! "$pixel" =~ ^[0-9]+$ ]]; then
+                echo "--- pixel=$pixel must be a positive integer value ---"
+                message1
+            fi
             ;;
         -fb)    # filmbase 
             shift
@@ -168,20 +180,25 @@ fi
 
 DEBUG set -x;
 
-XY=`convert $infile -format "%wx%h" info:`
-Y=`convert $infile -format "%h" info:`
 if [ $mode = "gap" ]; then 
     #remove any sprocket holes or missing bits of film use a default of 25% this mean the film base must be darker than 25%
     #this is necessary as the average of the white and dark may match the film base this not necessary when looking for the holder
     #may need to revist this
-    convert $infile -fuzz "$filmbase"% -fill black -opaque white "$tmpprefix""$outprefix"0.png
-else 
-    convert $infile -fuzz "$filmbase"% -fill black -opaque white "$tmpprefix""$outprefix"0.png
-    #convert $infile "$tmpprefix""$outprefix"0.png
+    tmpfile0="$tmpprefix""$outprefix"0.png
+    convert $infile -fuzz "$filmbase"% -fill black -opaque white "$tmpfile0"
+else
+    #skip the fill step and just use input file directly
+    tmpfile0="$infile"
 fi
-#TODO put a debug that shows the full size of the image
-#convert "$tmpprefix""$outprefix"0.png -scale x1! -scale $XY! "$tmpprefix""$outprefix"1.png
-convert "$tmpprefix""$outprefix"0.png -scale x1! "$tmpprefix""$outprefix"1.png
+
+if [ "$debug" -eq 2 ]; then
+    #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
+    #caution this may have side effects as the logic is different compared to the low debug levels
+    XY=`convert $infile -format "%wx%h" info:`
+    convert "$tmpfile0" -scale x1! -scale $XY! "$tmpprefix""$outprefix"1.png
+else
+    convert "$tmpfile0" -scale x1! "$tmpprefix""$outprefix"1.png
+fi
 
 stripcolor=(`convert "$tmpprefix""$outprefix"1.png -strip -blur 7x7 -format \
 "%[fx: minima.r * 100 ] "\
@@ -196,7 +213,8 @@ opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
 
 convert "$tmpprefix""$outprefix"1.png -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpprefix""$outprefix"2.png
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
-convert "$tmpprefix""$outprefix"2.png -morphology open "5x1:0,1,1,1,0" "$tmpprefix""$outprefix"3.png
+#convert "$tmpprefix""$outprefix"2.png -morphology open "5x1:0,1,1,1,0" "$tmpprefix""$outprefix"3.png
+convert "$tmpprefix""$outprefix"2.png -morphology open "Rectangle:"$pixel"x1" "$tmpprefix""$outprefix"3.png
 set +x
 
 arr=()
@@ -209,9 +227,9 @@ arr=(`convert "$tmpprefix""$outprefix"3.png -type bilevel \
 null: | sed 's/^[ ]*//' | tail -n +2`)
 IFS=$OLD_IFS
 num=${#arr[*]}
-#echo "num=$num"
 
-echo cropping frames
+DEBUG echo cropping frames
+Y=`convert $infile -format "%h" info:`
 for ((i=0;i<num;i++)); do
     color=`echo "${arr[$i]}" | cut -d\  -f5`
     bbox=`echo "${arr[$i]}" | cut -d\  -f2`
@@ -222,25 +240,21 @@ for ((i=0;i<num;i++)); do
     #        echo "$i=>${array[j]}"
     #    done;
     X="${array[0]}"
-    Y="${array[1]}"
-Y=`convert $infile -format "%h" info:`
+    if [ "$debug" -eq 2 ]; then
+        #you have the correct height
+        Y="${array[1]}"
+    fi
     x="${array[2]}"
     y="${array[3]}"
-    #X=$((X+25))
-    #Y=$((Y+25))
 
-    if [ "$debug" -eq 0 ] && [ "$color" = "gray(0)" ]; then
-        echo skipping $i XYxy $X $Y $x $y
+    if [ "$debug" -lt 2 ] && [ "$color" = "gray(0)" ]; then
+        DEBUG echo skipping $i XYxy $X $Y $x $y
         continue;
     fi
-    echo converting $i XYxy $X $Y $x $y
-    #if [ "$debug" -eq 0 ]; then
-        OUTFILE="$outprefix"frame-"$framenumber".tif
-    #else
-    #    OUTFILE="$outprefix"frame_boxnumber-"$i".tif
-    #fi
+    OUTFILE="$outprefix"frame-"$framenumber".tif
     framenumber=$((framenumber+1))
     DEBUG set -x;
+    echo cropping $OUTFILE
     convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $OUTFILE
     set +x
 done
