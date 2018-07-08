@@ -174,18 +174,18 @@ fi
 
 if [ -z $outprefix ]; then
     outprefix=${infile%".tif"}_
-    DEBUG echo outprefix: $outprefix
 else
     outprefix=${outprefix%".tif"}_
 fi
+tmpoutprefix="$tmpprefix"`basename "$outprefix"`
+DEBUG echo outprefix: $tmpoutprefix
 
 #first orientate the image if necessary
 if [ ! -z "$MIRROR" ] || [ ! -z "$FLIP" ] || [ ! -z "$ROTATE" ]; then
     echo "re orientating scan before processing"
-    convert $infile $MIRROR $ROTATE $FLIP "$tmpprefix""$infile"
-    infile="$tmpprefix""$infile"
+    convert $infile $MIRROR $ROTATE $FLIP "$tmpprefix"`basename "$infile"`
+    infile="$tmpprefix"`basename "$infile"`
 fi
-
 
 DEBUG set -x;
 
@@ -193,7 +193,7 @@ if [ $mode = "gap" ]; then
     #remove any sprocket holes or missing bits of film use a default of 25% this mean the film base must be darker than 25%
     #this is necessary as the average of the white and dark may match the film base this not necessary when looking for the holder
     #may need to revist this
-    tmpfile0="$tmpprefix""$outprefix"0.png
+    tmpfile0="$tmpoutprefix"0.png
     convert $infile -fuzz "$filmbase"% -fill black -opaque white "$tmpfile0"
 else
     #skip the fill step and just use input file directly
@@ -204,16 +204,16 @@ if [ "$debug" -eq 2 ]; then
     #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
     #caution this may have side effects as the logic is different compared to the low debug levels
     XY=`convert $infile -format "%wx%h" info:`
-    convert "$tmpfile0" -scale x1! -scale $XY! "$tmpprefix""$outprefix"1.png
+    convert "$tmpfile0" -scale x1! -scale $XY! "$tmpoutprefix"1.png
 else
-    convert "$tmpfile0" -scale x1! "$tmpprefix""$outprefix"1.png
+    convert "$tmpfile0" -scale x1! "$tmpoutprefix"1.png
 fi
 
 if [ $mode = "gap" ]; then 
-    stripcolor=(`convert "$tmpprefix""$outprefix"1.png -strip -blur 7x7 -format \
+    stripcolor=(`convert "$tmpoutprefix"1.png -strip -blur 7x7 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
 else
-    stripcolor=(`convert "$tmpprefix""$outprefix"1.png -strip -blur 7x7 -format \
+    stripcolor=(`convert "$tmpoutprefix"1.png -strip -blur 7x7 -format \
         "%[fx: minima.r * 100 ] %[fx: minima.g * 100 ] %[fx: minima.b * 100 ] " info:`)
 fi
 
@@ -224,16 +224,16 @@ fi
 #done
 opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
 
-convert "$tmpprefix""$outprefix"1.png -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpprefix""$outprefix"2.png
+convert "$tmpoutprefix"1.png -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpoutprefix"2.png
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
-#convert "$tmpprefix""$outprefix"2.png -morphology open "5x1:0,1,1,1,0" "$tmpprefix""$outprefix"3.png
-convert "$tmpprefix""$outprefix"2.png -morphology open "Rectangle:"$pixel"x1" "$tmpprefix""$outprefix"3.png
+#convert "$tmpoutprefix"2.png -morphology open "5x1:0,1,1,1,0" "$tmpoutprefix"3.png
+convert "$tmpoutprefix"2.png -morphology open "Rectangle:"$pixel"x1" "$tmpoutprefix"3.png
 set +x
 
 arr=()
 OLD_IFS=$IFS
 IFS=$'\n'
-arr=(`convert "$tmpprefix""$outprefix"3.png -type bilevel \
+arr=(`convert "$tmpoutprefix"3.png -type bilevel \
 -define connected-components:verbose=true \
 -define connected-components:mean-color=true \
 -connected-components 4 \
@@ -278,5 +278,5 @@ for ((i=0;i<num;i++)); do
 done
 
 if [ "$debug" -eq 0 ]; then
-    rm -f "$tmpprefix""$outprefix"*
+    rm -f "$tmpoutprefix"*
 fi

@@ -12,12 +12,11 @@ message1()
 	echo >&2 ""
 	echo >&2 "$PROGNAME:" "$@"
         cat << MESSAGE1
-USAGE: scantool [-S show ] [c1  color 1 ] [ -c2 color2 ]
+USAGE: $PROGNAME [-S show ] [c1  color 1 ] [ -c2 color2 ]
 [ -c3 color3 ] [-c4 color4] [ -p profile ] [-m1 mono1 ] [ -m2 mono2 ] [ -g grade ] infile [outfile_prefix]
-USAGE: invertscan [-h or -help]
+USAGE: $PROGNAME [-h or -help]
 
 OPTIONS:
--S          show working    show intermediate working files for debugging
 
 MESSAGE1
 exit 1
@@ -28,19 +27,40 @@ message2()
     echo >&2 "$PROGNAME:" "$@"
     cat  >&2 << MESSAGE2
 
-NAME: invertscan
+NAME: $PROGNAME
 
 PURPOSE: to crop separate frames of a trimmed film strip
 
 
 Arguments:
--S          show working    show intermediate working files for debugging
+TODO
 
 MESSAGE2
 exit 1
 }
+function DEBUG()
+{
+ [ ! "$debug" -eq 0 ] &&  $@
+}
 
-showtmp=0
+tmpdir="./"
+debug=0
+tmpprefix=$tmpdir"_st_"
+
+if [ "$1" = "frames" ]; then
+    mode="frames"
+    shift
+elif [ "$1" = "invert" ]; then
+    mode="invert"
+    shift
+elif [ "$1" = "both" ]; then
+    mode="both"
+    shift
+else
+    echo "must specify either frames or invert or both"
+    message2
+fi
+
 
 while [ $# -gt 0 ]
 do
@@ -50,19 +70,7 @@ do
             echo ""
             message2
             ;;
-        -S)	showtmp=1
-            ;;
-        -c1)	invertscan="c1"
-            ;;
-        -c2)	invertscan="c2"
-            ;;
-        -c3)	invertscan="c3"
-            ;;
-        -c4)	invertscan="c4"
-            ;;
-        -m1)	invertscan="m1"
-            ;;
-        -m2)	invertscan="m2"
+        -d)	debug=1
             ;;
         -)    # STDIN and end of arguments
             break
@@ -78,37 +86,65 @@ do
     shift   # next option
 done
 
-infile=${1%".tif"}
+infile=$1
+outprefix=$2
 
 if [ -z $infile ]
 then
     echo "must provide a filename"
-    exit 0
+    message2
+fi
+if [ ! -f "$infile" -o ! -r "$infile" ]; then
+    echo "Cannot open: $infile"
+    exit 1
 fi
 
-if [ -z $invertscan ]
-then
-
-    #stripscan -s 8 -r 90 "$infile".tif
-    stripscan -r 90 "$infile".tif
-
-    for i in `ls "$infile"_strip-*`; do
-        #framescan -S -f 3 $i
-        framescan -f 3 $i
-    done
-
-    mkdir -p "$infile"_frames
-    mv "$infile"_strip*_frame* "$infile"_frames
-
-    if [ "$showtmp" -eq 0 ]; then
-        rm -f "$infile"_strip-*
-    else
-        mkdir -p "$infile"_strips
-        mv "$infile"_strip-* "$infile"_strips
-    fi
-
+if [ -z $outprefix ]; then
+    outprefix=${infile%".tif"}_
 else
-    echo "as expected"
+    outprefix=${outprefix%".tif"}_
+fi
+tmpoutprefix="$tmpprefix"`basename "$outprefix"`
+DEBUG echo outprefix: $tmpoutprefix
+
+if [ $mode = "frames" ] || [ $mode = "both" ]; then 
+DEBUG set -x;
+
+    mapfile files < <(vtrimscan holder $infile $tmpoutprefix | sed 's/^cropping //g' ) 
+    DEBUG echo ${files[*]}
+
+
+    for ((i=0;i<${#files[*]};i++)); do
+
+        DEBUG echo processing i ${files[i]}
+        mapfile filesJ < <(vtrimscan holder -r 90 ${files[i]} | grep -v orientating | sed 's/^cropping //g' ) 
+        DEBUG echo ${filesJ[*]}
+        for ((j=0;j<${#filesJ[*]};j++)); do 
+            DEBUG echo processing j ${filesJ[j]}
+            vtrimscan gap ${filesJ[j]}
+        done
+    done
+    #stripscan -s 8 -r 90 "$infile".tif
+    #stripscan -r 90 "$infile".tif
+
+    #for i in `ls "$infile"_strip-*`; do
+    #    #framescan -S -f 3 $i
+    #    framescan -f 3 $i
+    #done
+
+    #mkdir -p "$infile"_frames
+    #mv "$infile"_strip*_frame* "$infile"_frames
+
+    #if [ "$showtmp" -eq 0 ]; then
+    #    rm -f "$infile"_strip-*
+    #else
+    #    mkdir -p "$infile"_strips
+    #    mv "$infile"_strip-* "$infile"_strips
+    #fi
+fi
+
+if [ $mode = "invert" ] || [ $mode = "both" ]; then 
+
 
     echo ls "$infile"_frames
     for i in `ls "$infile"_frames`; do
@@ -121,3 +157,6 @@ else
 
 fi
 
+if [ "$debug" -eq 0 ]; then
+    rm -f "$tmpoutprefix"*
+fi
