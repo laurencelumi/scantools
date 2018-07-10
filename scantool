@@ -46,6 +46,7 @@ function DEBUG()
 tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_st_"
+framenumber=1
 
 if [ "$1" = "frames" ]; then
     mode="frames"
@@ -72,6 +73,14 @@ do
             ;;
         -d)	debug=1
             ;;
+        -n)    # number
+            shift
+            framenumber="$1"
+            if [[ ! "$framenumber" =~ ^[0-9]+$ ]]; then
+                echo "--- framenumber=$framenumber must be a integer value  ---"
+                message1
+            fi
+            ;;
         -)    # STDIN and end of arguments
             break
             ;;
@@ -89,6 +98,7 @@ done
 infile=$1
 outprefix=$2
 
+
 if [ -z $infile ]
 then
     echo "must provide a filename"
@@ -105,42 +115,34 @@ else
     outprefix=${outprefix%".tif"}_
 fi
 tmpoutprefix="$tmpprefix"`basename "$outprefix"`
-DEBUG echo outprefix: $tmpoutprefix
+DEBUG echo tmpoutprefix: $tmpoutprefix
+DEBUG echo outprefix: $outprefix
 
 if [ $mode = "frames" ] || [ $mode = "both" ]; then 
 DEBUG set -x;
 
     mapfile files < <(vtrimscan holder $infile $tmpoutprefix | sed 's/^cropping //g' ) 
-    DEBUG echo ${files[*]}
+    DEBUG echo files: ${files[*]}
 
 
     for ((i=0;i<${#files[*]};i++)); do
 
-        DEBUG echo processing i ${files[i]}
         mapfile filesJ < <(vtrimscan holder -r 90 ${files[i]} | grep -v orientating | sed 's/^cropping //g' ) 
-        DEBUG echo ${filesJ[*]}
+        DEBUG echo files j:${filesJ[*]}
         for ((j=0;j<${#filesJ[*]};j++)); do 
-            DEBUG echo processing j ${filesJ[j]}
-            vtrimscan gap ${filesJ[j]}
+            mapfile filesK < <(vtrimscan gap ${filesJ[j]} | sed 's/^cropping //g' )
+            DEBUG echo files k:${filesK[*]}
+            for ((k=0;k<${#filesK[*]};k++)); do
+                OUTFILE="$outprefix"frame-"$framenumber".tif
+                framenumber=$((framenumber+1))
+                mv ${filesK[k]} $OUTFILE
+                if [ "$debug" -gt 0 ]; then
+                    ln -f $OUTFILE ${filesK[k]} 
+                fi
+                echo saving $OUTFILE
+            done
         done
     done
-    #stripscan -s 8 -r 90 "$infile".tif
-    #stripscan -r 90 "$infile".tif
-
-    #for i in `ls "$infile"_strip-*`; do
-    #    #framescan -S -f 3 $i
-    #    framescan -f 3 $i
-    #done
-
-    #mkdir -p "$infile"_frames
-    #mv "$infile"_strip*_frame* "$infile"_frames
-
-    #if [ "$showtmp" -eq 0 ]; then
-    #    rm -f "$infile"_strip-*
-    #else
-    #    mkdir -p "$infile"_strips
-    #    mv "$infile"_strip-* "$infile"_strips
-    #fi
 fi
 
 if [ $mode = "invert" ] || [ $mode = "both" ]; then 
