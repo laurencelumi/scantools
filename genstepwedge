@@ -34,4 +34,3 @@ convert -colorspace LAB \
 -size 300x100 canvas:"cielab(4%,0,0)" \
 -size 300x100 canvas:"cielab(1%,0,0)" \
 -append -colorspace sRGB sRGBstepwedge.tif
-#-append -colorspace sRGB sRGBstepwedge.tif
