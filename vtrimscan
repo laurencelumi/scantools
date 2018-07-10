@@ -178,13 +178,15 @@ else
     outprefix=${outprefix%".tif"}_
 fi
 tmpoutprefix="$tmpprefix"`basename "$outprefix"`
-DEBUG echo outprefix: $tmpoutprefix
+DEBUG echo tmpoutprefix: $tmpoutprefix
+DEBUG echo outprefix: $outprefix
 
 #first orientate the image if necessary
 if [ ! -z "$MIRROR" ] || [ ! -z "$FLIP" ] || [ ! -z "$ROTATE" ]; then
     echo "re orientating scan before processing"
-    convert $infile $MIRROR $ROTATE $FLIP "$tmpprefix"`basename "$infile"`
-    infile="$tmpprefix"`basename "$infile"`
+    reorientatedfile="$tmpoutprefix"reoreintated.tif
+    convert $infile $MIRROR $ROTATE $FLIP "$reorientatedfile"
+    infile="$reorientatedfile"
 fi
 
 DEBUG set -x;
@@ -224,6 +226,7 @@ fi
 #done
 opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
 
+#note sometimes convert reduces the png to 8bit if it can do so when it leaves it at 16bit this is probably because the fill has worked in funny way i.e. not all black and white
 convert "$tmpoutprefix"1.png -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpoutprefix"2.png
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
 #convert "$tmpoutprefix"2.png -morphology open "5x1:0,1,1,1,0" "$tmpoutprefix"3.png
@@ -265,7 +268,7 @@ for ((i=0;i<num;i++)); do
         x=$((x+$extend))
     fi
 
-    if [ "$debug" -lt 2 ] && [ "$color" = "gray(0)" ]; then
+    if [ "$debug" -lt 2 ] && ( [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] ) ; then
         DEBUG echo skipping $i XYxy $X $Y $x $y
         continue;
     fi
