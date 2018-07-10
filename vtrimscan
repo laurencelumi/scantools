@@ -1,0 +1,285 @@
+#!/bin/bash
+#
+# Licensing:
+#
+# Copyright © Laurence Lumi 2017
+# Licensed GNU General Public License v3
+# which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
+#
+
+PROGNAME=`basename $0`
+message1()
+	{
+	echo >&2 ""
+	echo >&2 "$PROGNAME:" "$@"
+        cat << MESSAGE1
+USAGE: $PROGNAME [-f fuzz ] [-m mirror ] [ -r rotate ]
+[ -a all boxes ] [-e extend] [-S show mask] [ -n number ] infile [outfile_prefix]
+USAGE: $PROGNAME [-h or -help]
+
+holder    removeholder   the script for trim the film holder
+gap       remove gap     the script will remove the film frame gaps
+
+OPTIONS:
+
+-fb         filmbase       fuzz value used as threshold for removing any white areas from the scan
+                           if brighest area of the film base is 75% then the threshold should be less than 25%
+                           expressed as (integer) percent 0 to 100; default=25
+-f          fuzz           fuzz value used for a threshold to find area outside the frame, either the black film holder or the gaps between frames  
+                           expressed as (integer) percent 0 to 100; default=2
+-m          mirror         mirrors left to right the scan before it is processed, usefull if the negative was scanned emulsion down
+-flip       flip          mirrors the scan vertically before it is processed, usefull if the negative was scanned emulsion down
+-r          rotate         rotates the scan before it is processed, positive integer <= 360
+-d          debug          provided usefull debuging and leaves intermediate files behind
+-n          frame number   the starting frame number to use in file name; defaults to #1
+-p          pixelwidth     the smallest amount of horizontal pixel that could make a usefull image defaults: 100
+-e          extend         extend crop on each side in pixels; integer; default=0  
+MESSAGE1
+exit 1
+	}
+message2()
+{
+    echo >&2 ""
+    echo >&2 "$PROGNAME:" "$@"
+    cat  >&2 << MESSAGE2
+
+NAME: $PROGNAME
+
+PURPOSE: to trim the film holder and separate frames of a trimmed film strip
+
+
+Arguments:
+
+TODO
+
+MESSAGE2
+exit 1
+}
+function DEBUG()
+{
+ [ ! "$debug" -eq 0 ] &&  $@
+}
+
+tmpdir="./"
+debug=0
+tmpprefix=$tmpdir"_vt_"
+filmbase=25
+fuzz=2
+framenumber=1
+pixel=100
+extend=0
+
+if [ "$1" = "holder" ]; then
+    mode="holder"
+    shift
+elif [ "$1" = "gap" ]; then
+    mode="gap"
+    shift
+else
+    echo "must specify either holder or gap"
+    message2
+fi
+
+while [ $# -gt 0 ]
+do
+    # get parameters
+    case "$1" in
+        -h|-help)    # help information
+            echo ""
+            message2
+            ;;
+        -d)	debug=1
+            ;;
+        -dd)	debug=2
+            ;;
+        -m)	MIRROR="-flop"
+            ;;
+        -flip)	FLIP="-flip"
+            ;;
+        -r)    # rotate
+            shift
+            rotate="$1"
+            if [[ ! "$rotate" =~ ^[0-9]+$ ]] || [ "$rotate" -lt 0 -o "$rotate" -gt 360 ]; then
+                echo "--- rotate=$rotate must be a positive integer value between 0 and 360 ---"
+                message1
+            fi
+            ROTATE="-rotate $rotate +repage"
+            ;;
+        -p)    # pixel
+            shift
+            pixel="$1"
+            if [[ ! "$pixel" =~ ^[0-9]+$ ]]; then
+                echo "--- pixel=$pixel must be a positive integer value ---"
+                message1
+            fi
+            ;;
+        -e)    # extend
+            shift
+            extend="$1"
+            if [[ ! "$extend" =~ ^[0-9]+$ ]]; then
+                echo "--- extend=$extend must be a positive integer value ---"
+                message1
+            fi
+            ;;
+        -fb)    # filmbase 
+            shift
+            filmbase="$1"
+            if [[ ! "$filmbase" =~ ^[0-9]+$ ]] || [ "$filmbase" -lt 0 -o "$filmbase" -gt 100 ]; then
+                echo "--- filmbase=$filmbase must be a positive integer value between 0 and 100 ---"
+                message1
+            fi
+            ;;
+        -f)    # fuzz
+            shift
+            fuzz="$1"
+            if [[ ! "$fuzz" =~ ^[0-9]+$ ]] || [ "$fuzz" -lt 0 -o "$fuzz" -gt 100 ]; then
+                echo "--- fuzz=$fuzz must be a positive integer value between 0 and 100 ---"
+                message1
+            fi
+            ;;
+        -n)    # number
+            shift
+            framenumber="$1"
+            if [[ ! "$framenumber" =~ ^[0-9]+$ ]]; then
+                echo "--- framenumber=$framenumber must be a integer value  ---"
+                message1
+            fi
+            ;;
+        -)    # STDIN and end of arguments
+            break
+            ;;
+        -*)    # any other - argument
+            echo "--- UNKNOWN OPTION ---"
+            message1
+            ;;
+        *)     # end of arguments
+            break
+            ;;
+    esac
+    shift   # next option
+done
+
+infile=$1
+outprefix=$2
+
+if [ -z $infile ]
+then
+    echo "must provide a filename"
+    message2
+fi
+if [ ! -f "$infile" -o ! -r "$infile" ]; then
+    echo "Cannot open: $infile"
+    exit 1
+fi
+
+if [ -z $outprefix ]; then
+    outprefix=${infile%".tif"}_
+else
+    outprefix=${outprefix%".tif"}_
+fi
+tmpoutprefix="$tmpprefix"`basename "$outprefix"`
+DEBUG echo tmpoutprefix: $tmpoutprefix
+DEBUG echo outprefix: $outprefix
+
+#first orientate the image if necessary
+if [ ! -z "$MIRROR" ] || [ ! -z "$FLIP" ] || [ ! -z "$ROTATE" ]; then
+    echo "re orientating scan before processing"
+    reorientatedfile="$tmpoutprefix"reoreintated.tif
+    convert $infile $MIRROR $ROTATE $FLIP "$reorientatedfile"
+    infile="$reorientatedfile"
+fi
+
+DEBUG set -x;
+
+if [ $mode = "gap" ]; then 
+    #remove any sprocket holes or missing bits of film use a default of 25% this mean the film base must be darker than 25%
+    #this is necessary as the average of the white and dark may match the film base this not necessary when looking for the holder
+    #may need to revist this
+    tmpfile0="$tmpoutprefix"0.png
+    convert $infile -fuzz "$filmbase"% -fill black -opaque white "$tmpfile0"
+else
+    #skip the fill step and just use input file directly
+    tmpfile0="$infile"
+fi
+
+if [ "$debug" -eq 2 ]; then
+    #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
+    #caution this may have side effects as the logic is different compared to the low debug levels
+    XY=`convert $infile -format "%wx%h" info:`
+    convert "$tmpfile0" -scale x1! -scale $XY! "$tmpoutprefix"1.png
+else
+    convert "$tmpfile0" -scale x1! "$tmpoutprefix"1.png
+fi
+
+if [ $mode = "gap" ]; then 
+    stripcolor=(`convert "$tmpoutprefix"1.png -strip -blur 7x7 -format \
+        "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
+else
+    stripcolor=(`convert "$tmpoutprefix"1.png -strip -blur 7x7 -format \
+        "%[fx: minima.r * 100 ] %[fx: minima.g * 100 ] %[fx: minima.b * 100 ] " info:`)
+fi
+
+#num=${#stripcolor[*]}
+#echo num:$num
+#for ((i=0;i<num;i++)); do
+#    echo SC:${stripcolor[$i]}
+#done
+opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
+
+#note sometimes convert reduces the png to 8bit if it can do so when it leaves it at 16bit this is probably because the fill has worked in funny way i.e. not all black and white
+convert "$tmpoutprefix"1.png -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpoutprefix"2.png
+#morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
+#convert "$tmpoutprefix"2.png -morphology open "5x1:0,1,1,1,0" "$tmpoutprefix"3.png
+convert "$tmpoutprefix"2.png -morphology open "Rectangle:"$pixel"x1" "$tmpoutprefix"3.png
+set +x
+
+arr=()
+OLD_IFS=$IFS
+IFS=$'\n'
+arr=(`convert "$tmpoutprefix"3.png -type bilevel \
+-define connected-components:verbose=true \
+-define connected-components:mean-color=true \
+-connected-components 4 \
+null: | sed 's/^[ ]*//' | tail -n +2`)
+IFS=$OLD_IFS
+num=${#arr[*]}
+
+DEBUG echo cropping frames
+Y=`convert $infile -format "%h" info:`
+for ((i=0;i<num;i++)); do
+    color=`echo "${arr[$i]}" | cut -d\  -f5`
+    bbox=`echo "${arr[$i]}" | cut -d\  -f2`
+    bbox=`echo $bbox  | sed 's/[+x]/:/g'`
+    array=(${bbox//:/ })
+    #    for j in "${!array[@]}"
+    #    do
+    #        echo "$i=>${array[j]}"
+    #    done;
+    X="${array[0]}"
+    if [ "$debug" -eq 2 ]; then
+        #you have the correct height
+        Y="${array[1]}"
+    fi
+    x="${array[2]}"
+    y="${array[3]}"
+    
+    if [ $extend -ne 0 ]; then
+        X=$((X-($extend*2)))
+        x=$((x+$extend))
+    fi
+
+    if [ "$debug" -lt 2 ] && ( [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] ) ; then
+        DEBUG echo skipping $i XYxy $X $Y $x $y
+        continue;
+    fi
+    OUTFILE="$outprefix"frame-"$framenumber".tif
+    framenumber=$((framenumber+1))
+    DEBUG set -x;
+    echo cropping $OUTFILE
+    convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $OUTFILE
+    set +x
+done
+
+if [ "$debug" -eq 0 ]; then
+    rm -f "$tmpoutprefix"*
+fi

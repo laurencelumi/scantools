@@ -4,28 +4,29 @@ A series of tools to improve film scanning.
 
 includes the following:
 
-- stripscan
-- framescan
+- vtrimscan
 - profilescan
 - invertscan
 - takepicture
 - scantool
 
-stripscan
+vtrimscan
 
-    turns the multiple strips of film on a flat bed into single strips
+    removes the film holder and seperates film from a scan containing multiple images
 
     e.g. usage:
 
-    stripscan -s 2 -r 90 somefile.tif
+     vtrimscan holder fullpage.tif
 
-    "bin" half the pixels, rotate 90
+     trims the film vertically in to strips removing the holder frame holder between film strims
 
-    currently gives acceptable speed at 2400dpi, but is designed to process the scan at the hightest resolution. 
+     vtrimscan holder -r 90 fullpage-strip-1.tif
 
-framescan:
+     rotates the a film strip 90 degrees then removes the film holder from ends
 
-    framescan  somefile_strip.tif
+     vtrimscan gap strip-1.tif
+
+     seperates each frame and trims the film
 
 profilescan:
 
