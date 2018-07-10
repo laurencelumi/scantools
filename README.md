@@ -4,11 +4,21 @@ A series of tools to improve film scanning.
 
 includes the following:
 
+- scantool
 - vtrimscan
 - profilescan
 - invertscan
 - takepicture
-- scantool
+
+scantool:
+
+    takes a single scan of multiple films strips removes the holder and seperats each frame
+
+    scantool fullscan.tif
+
+    or
+
+    scantool -n 25 fullscan.tif
 
 vtrimscan
 
@@ -44,12 +54,3 @@ takepicture:
 
     takepicture some.jpg
 
-scantool:
-
-    does it all in one go:
-
-    for foo in n10_757_a_full4800_exp1_*.tif;do scantool $foo;done
-
-    or
-
-    for foo in n10_757_a_full4800_exp1_*.tif;do scantool -m2 $foo;done
