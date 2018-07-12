@@ -381,24 +381,24 @@ B_BASE=$3
 
     #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DOB=-log(u)-(-log($1));(95+500*DOB)/1024)" \
-        -channel G -fx "DOB=-log(u)-(-log($2));(95+500*DOB)/1024" \
-        -channel B -fx "DOB=-log(u)-(-log($3));(95+500*DOB)/1024" \
+        -channel R -fx "DAB=-log(u)-(-log($1));(95+500*DAB)/1024)" \
+        -channel G -fx "DAB=-log(u)-(-log($2));(95+500*DAB)/1024" \
+        -channel B -fx "DAB=-log(u)-(-log($3));(95+500*DAB)/1024" \
         $MIRROR -comment "$COMMENT" $ZIP "$outfile"
 
     #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DOB=-log(u)-(-log($1));dpx=95+500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
-        -channel G -fx "DOB=-log(u)-(-log$2));dpx=95+500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
-        -channel B -fx "DOB=-log(u)-(-log($3));dpx=95+500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel R -fx "DAB=-log(u)-(-log($1));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel G -fx "DAB=-log(u)-(-log$2));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel B -fx "DAB=-log(u)-(-log($3));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
         -colorspace sRGB \
         $MIRROR -comment "$COMMENT" $ZIP dpx_lin_"$outfile"
 
     #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DOB=-log(u)-(-log($1));dpx=500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
-        -channel G -fx "DOB=-log(u)-(-log$2));dpx=500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
-        -channel B -fx "DOB=-log(u)-(-log($3));dpx=500*DOB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel R -fx "DAB=-log(u)-(-log($1));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel G -fx "DAB=-log(u)-(-log$2));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel B -fx "DAB=-log(u)-(-log($3));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
         -colorspace sRGB \
         $MIRROR -comment "$COMMENT" $ZIP dpx_lin_2"$outfile"
 
@@ -481,33 +481,33 @@ echo RGB: $R_BASE $G_BASE $B_BASE
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
 #    convert $infile[0] -strip $CSPACE \
-#        -channel R -fx "DOB=log(1/u)-log(1/$1);debug(DOB);debug(1/10^(DOB*.6));(1/10^(DOB*.6))" \
-#        -channel G -fx "DOB=log(1/u)-log(1/$2);;(1/10^(DOB*.6))" \
-#        -channel B -fx "DOB=log(1/u)-log(1/$3);;(1/10^(DOB*.6))" \
+#        -channel R -fx "DAB=log(1/u)-log(1/$1);debug(DAB);debug(1/10^(DAB*.6));(1/10^(DAB*.6))" \
+#        -channel G -fx "DAB=log(1/u)-log(1/$2);;(1/10^(DAB*.6))" \
+#        -channel B -fx "DAB=log(1/u)-log(1/$3);;(1/10^(DAB*.6))" \
 #        -colorspace sRGB \
 #        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
 #    convert $infile[0] -strip $CSPACE \
-#       -channel R -fx "DOB=log(1/u)-log(1/$1);;(10^(DOB*.6))*.1" \
-#        -channel G -fx "DOB=log(1/u)-log(1/$2);;(10^(DOB*.6))*.1" \
-#        -channel B -fx "DOB=log(1/u)-log(1/$3);;(10^(DOB*.6))*.1" \
+#       -channel R -fx "DAB=log(1/u)-log(1/$1);;(10^(DAB*.6))*.1" \
+#        -channel G -fx "DAB=log(1/u)-log(1/$2);;(10^(DAB*.6))*.1" \
+#        -channel B -fx "DAB=log(1/u)-log(1/$3);;(10^(DAB*.6))*.1" \
 #        -colorspace sRGB \
 #        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DOB=log(1/u)-log(1/$1);(10^((DOB-$MAXD)*.6))" \
-        -channel G -fx "DOB=log(1/u)-log(1/$2);(10^((DOB-$MAXD)*.6))" \
-        -channel B -fx "DOB=log(1/u)-log(1/$3);(10^((DOB-$MAXD)*.6))" \
+        -channel R -fx "DAB=log(1/u)-log(1/$1);(10^((DAB-$MAXD)*.6))" \
+        -channel G -fx "DAB=log(1/u)-log(1/$2);(10^((DAB-$MAXD)*.6))" \
+        -channel B -fx "DAB=log(1/u)-log(1/$3);(10^((DAB-$MAXD)*.6))" \
         -colorspace sRGB \
         $MIRROR -comment "$COMMENT" $ZIP "$outfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DOB=log(1/u)-log(1/$1);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
-        -channel G -fx "DOB=log(1/u)-log(1/$2);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
-        -channel B -fx "DOB=log(1/u)-log(1/$3);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
+        -channel R -fx "DAB=log(1/u)-log(1/$1);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -channel G -fx "DAB=log(1/u)-log(1/$2);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -channel B -fx "DAB=log(1/u)-log(1/$3);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
         -colorspace sRGB \
         $MIRROR -comment "$COMMENT" $ZIP _"$outfile"
 
@@ -595,9 +595,9 @@ echo RGB: $R_BASE $G_BASE $B_BASE
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $newfile[0] -strip $CSPACE \
-        -channel R -fx "DOB=log(1/u)-log(1/$1);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
-        -channel G -fx "DOB=log(1/u)-log(1/$2);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
-        -channel B -fx "DOB=log(1/u)-log(1/$3);(((10^(DOB*.6))*7000)-7000)/QuantumRange" \
+        -channel R -fx "DAB=log(1/u)-log(1/$1);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -channel G -fx "DAB=log(1/u)-log(1/$2);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -channel B -fx "DAB=log(1/u)-log(1/$3);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
         -colorspace sRGB \
         $MIRROR -comment "$COMMENT" $ZIP "$outfile"
 
