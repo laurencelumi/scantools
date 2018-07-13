@@ -86,7 +86,7 @@ convert "$infile[0]" -strip $CSPACE  \
     -channel R -fx "u * $R_FILTER" -fx "u?u:1"  \
     -channel G -fx "u * $G_FILTER" -fx "u?u:1"  \
     -channel B -fx "u * $B_FILTER" -fx "u?u:1"  \
-    -comment "$COMMENT" "$tmpprefix"_nomask.tif
+    -set comment "$COMMENT" "$tmpprefix"_nomask.tif
 
 #lets have look now that mask is gone
 eval set -- `convert "$tmpprefix"_nomask.tif $CSPACE  -strip -blur 0x7 -format \
@@ -229,7 +229,7 @@ if [ $approach = "c_invert_gamma_then_BP" ]; then
         -channel G -fx "($Jn_MIN/u)^$G_GAMMA" \
         -channel B -fx "($Jn_MIN/u)^$B_GAMMA" \
         -colorspace sRGB \
-        -comment "$COMMENT" "$tmpprefix"_inverted_with_gamma.tif
+        -set comment "$COMMENT" "$tmpprefix"_inverted_with_gamma.tif
 
     #there is still some funky stuff in IM-6.9.7-4 which means the colorspace and gamma is not quite working as expected, this at the moment should give the same result as above
     #PUT ASIDE UNTIL I FIGURE OUT THE IM BUG
@@ -240,7 +240,7 @@ if [ $approach = "c_invert_gamma_then_BP" ]; then
         \( -clone 2 -poly "$Jn_MIN,-1" -poly "1,$B_GAMMA" \) -swap 2,3 -delete 3 \
         $CSPACE \
         -combine -type TrueColor \
-        -comment "$COMMENT" "$tmpprefix"_inverted_with_gamma_2.tif
+        -set comment "$COMMENT" "$tmpprefix"_inverted_with_gamma_2.tif
 
     #blackpoint per cfs-243
     #calculating BP
@@ -257,7 +257,7 @@ if [ $approach = "c_invert_gamma_then_BP" ]; then
     #note previous operation save the filed non-linear
     convert "$tmpprefix"_inverted_with_gamma.tif -strip -colorspace RGB \
         +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 fi
 
 if [ $approach = "c_invert_then_BP_then_gamma" ]; then
@@ -272,7 +272,7 @@ if [ $approach = "c_invert_then_BP_then_gamma" ]; then
         -channel G -fx "($Jn_MIN/u)" \
         -channel B -fx "($Jn_MIN/u)" \
         -colorspace sRGB \
-        -comment "$COMMENT" "$tmpprefix"_inverted_only.tif
+        -set comment "$COMMENT" "$tmpprefix"_inverted_only.tif
 
     #blackpoint per cfs-243
     #calculating BP
@@ -289,7 +289,7 @@ if [ $approach = "c_invert_then_BP_then_gamma" ]; then
     #note previous operation save the filed non-linear
     convert "$tmpprefix"_inverted_only.tif -strip -colorspace RGB \
         +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
-        -comment "$COMMENT" $ZIP "$tmpprefix"_inverted_with_bp.tif
+        -set comment "$COMMENT" $ZIP "$tmpprefix"_inverted_with_bp.tif
 
     #invert only no gamma
     convert "$tmpprefix"_inverted_with_bp.tif -strip -colorspace RGB  \
@@ -297,7 +297,7 @@ if [ $approach = "c_invert_then_BP_then_gamma" ]; then
         -channel G -fx "u^$G_GAMMA)" \
         -channel B -fx "u^$B_GAMMA)" \
         -colorspace sRGB \
-        -comment "$COMMENT" $ZIP "$outfile"
+        -set comment "$COMMENT" $ZIP "$outfile"
 
 fi
 
@@ -313,7 +313,7 @@ if [ $approach = "c_invert_gamma_only" ]; then
         -channel G -fx "($Jn_MIN/u)^$G_GAMMA" \
         -channel B -fx "($Jn_MIN/u)^$B_GAMMA" \
         -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 
 fi
 
@@ -337,7 +337,7 @@ B_HIGHLIGHT=$3
         -channel G -fx "u>0?($G_HIGHLIGHT/u)^$G_GAMMA:1" \
         -channel B -fx "u>0?($B_HIGHLIGHT/u)^$B_GAMMA:1" \
         -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 
 fi
 
@@ -361,7 +361,7 @@ B_HIGHLIGHT=$3
         -channel G -fx "($G_HIGHLIGHT/u)" \
         -channel B -fx "($B_HIGHLIGHT/u)" \
         -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 
 fi
 
@@ -384,7 +384,7 @@ B_BASE=$3
         -channel R -fx "DAB=-log(u)-(-log($1));(95+500*DAB)/1024)" \
         -channel G -fx "DAB=-log(u)-(-log($2));(95+500*DAB)/1024" \
         -channel B -fx "DAB=-log(u)-(-log($3));(95+500*DAB)/1024" \
-        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 
     #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
@@ -392,7 +392,7 @@ B_BASE=$3
         -channel G -fx "DAB=-log(u)-(-log$2));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
         -channel B -fx "DAB=-log(u)-(-log($3));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
         -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP dpx_lin_"$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP dpx_lin_"$outfile"
 
     #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
@@ -400,7 +400,7 @@ B_BASE=$3
         -channel G -fx "DAB=-log(u)-(-log$2));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
         -channel B -fx "DAB=-log(u)-(-log($3));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
         -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP dpx_lin_2"$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP dpx_lin_2"$outfile"
 
 fi
 
@@ -485,7 +485,7 @@ echo RGB: $R_BASE $G_BASE $B_BASE
 #        -channel G -fx "DAB=log(1/u)-log(1/$2);;(1/10^(DAB*.6))" \
 #        -channel B -fx "DAB=log(1/u)-log(1/$3);;(1/10^(DAB*.6))" \
 #        -colorspace sRGB \
-#        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+#        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
 #    convert $infile[0] -strip $CSPACE \
@@ -493,7 +493,7 @@ echo RGB: $R_BASE $G_BASE $B_BASE
 #        -channel G -fx "DAB=log(1/u)-log(1/$2);;(10^(DAB*.6))*.1" \
 #        -channel B -fx "DAB=log(1/u)-log(1/$3);;(10^(DAB*.6))*.1" \
 #        -colorspace sRGB \
-#        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+#        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
@@ -501,7 +501,7 @@ echo RGB: $R_BASE $G_BASE $B_BASE
         -channel G -fx "DAB=log(1/u)-log(1/$2);(10^((DAB-$MAXD)*.6))" \
         -channel B -fx "DAB=log(1/u)-log(1/$3);(10^((DAB-$MAXD)*.6))" \
         -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
@@ -509,7 +509,7 @@ echo RGB: $R_BASE $G_BASE $B_BASE
         -channel G -fx "DAB=log(1/u)-log(1/$2);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
         -channel B -fx "DAB=log(1/u)-log(1/$3);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
         -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP _"$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP _"$outfile"
 
 fi
 
@@ -523,19 +523,19 @@ newfile=tmp_"$infile"
 #    convert $infile[0] -strip $CSPACE \
 #        -channel R -fx "u^1.7" \
 #        -channel G -fx "u^1.15" \
-#        $MIRROR -comment "$COMMENT" $ZIP "$newfile"
+#        $MIRROR -set comment "$COMMENT" $ZIP "$newfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
         -channel R -fx "u^1.12" \
         -channel G -fx "u^1.05" \
-        $MIRROR -comment "$COMMENT" $ZIP "$newfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$newfile"
 
     #kodak 400
     #convert $infile[0] -strip $CSPACE \
     #    -channel R -fx "u^1.6" \
     #    -channel G -fx "u^1.15" \
-    #    $MIRROR -comment "$COMMENT" $ZIP "$newfile"
+    #    $MIRROR -set comment "$COMMENT" $ZIP "$newfile"
 
 #calcmask
 
@@ -599,7 +599,7 @@ echo RGB: $R_BASE $G_BASE $B_BASE
         -channel G -fx "DAB=log(1/u)-log(1/$2);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
         -channel B -fx "DAB=log(1/u)-log(1/$3);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
         -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 
 
     #rm $newfile
@@ -615,7 +615,7 @@ if [ $approach = "m_invert_gamma_then_BP" ]; then
     convert "$infile[0]" -strip $CSPACE  \
         -fx "($Jn_MIN/u)^$M_GAMMA" \
         -colorspace sRGB \
-        -comment "$COMMENT" "$tmpprefix"_inverted_with_gamma.tif
+        -set comment "$COMMENT" "$tmpprefix"_inverted_with_gamma.tif
 
     #there is still some funky stuff in IM-6.9.7-4 which means the colorspace and gamma is not quite working as expected, this at the movent should give the same result as above
     #PUT ASIDE UNTIL I FIGURE OUT THE IM BUG
@@ -624,7 +624,7 @@ if [ $approach = "m_invert_gamma_then_BP" ]; then
         \( -clone 0 -poly "$Jn_MIN,-1" -poly "1,$M_GAMMA" \) -swap 0,3 -delete 3 \
         $CSPACE \
         -combine -type TrueColor \
-        -comment "$COMMENT" "$tmpprefix"_inverted_with_gamma_2.tif
+        -set comment "$COMMENT" "$tmpprefix"_inverted_with_gamma_2.tif
 
     #blackpoint per cfs-243
     #calculating BP
@@ -641,7 +641,7 @@ if [ $approach = "m_invert_gamma_then_BP" ]; then
     #note previous operation save the filed non-linear
     convert "$tmpprefix"_inverted_with_gamma.tif -strip -colorspace RGB \
         +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 fi
 
 if [ $approach = "m_invert_then_BP_then_gamma" ]; then
@@ -653,7 +653,7 @@ if [ $approach = "m_invert_then_BP_then_gamma" ]; then
     convert "$infile[0]" -strip $CSPACE  \
         -fx "($Jn_MIN/u)" \
         -colorspace sRGB \
-        -comment "$COMMENT" "$tmpprefix"_inverted_only.tif
+        -set comment "$COMMENT" "$tmpprefix"_inverted_only.tif
 
     #blackpoint per cfs-243
     #calculating BP
@@ -670,13 +670,13 @@ if [ $approach = "m_invert_then_BP_then_gamma" ]; then
     #note previous operation save the filed non-linear
     convert "$tmpprefix"_inverted_only.tif -strip -colorspace RGB \
         +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
-        -comment "$COMMENT" $ZIP "$tmpprefix"_inverted_with_bp.tif
+        -set comment "$COMMENT" $ZIP "$tmpprefix"_inverted_with_bp.tif
 
     #invert only no gamma
     convert "$tmpprefix"_inverted_with_bp.tif -strip -colorspace RGB  \
         -fx "u^$M_GAMMA" \
         -colorspace sRGB \
-        $MIRROR -comment "$COMMENT" $ZIP "$outfile"
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
 
 fi
 
