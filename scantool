@@ -118,10 +118,12 @@ tmpoutprefix="$tmpprefix"`basename "$outprefix"`
 DEBUG echo tmpoutprefix: $tmpoutprefix
 DEBUG echo outprefix: $outprefix
 
-if [ $mode = "frames" ] || [ $mode = "both" ]; then 
+if [ $mode = "frames" ] || [ $mode = "both" ]; then
+invertfiles=()
 DEBUG set -x;
 
-    mapfile files < <(vtrimscan holder $infile $tmpoutprefix | sed 's/^cropping //g' ) 
+    #because the strips of film will contain at some gaps the fuzz threshhold can be increased
+    mapfile files < <(vtrimscan holder -f 10 $infile $tmpoutprefix | sed 's/^cropping //g' ) 
     DEBUG echo files: ${files[*]}
 
 
@@ -140,6 +142,7 @@ DEBUG set -x;
                     ln -f $OUTFILE ${filesK[k]} 
                 fi
                 echo saving $OUTFILE
+                invertfiles+=($OUTFILE)
             done
         done
     done
@@ -148,12 +151,8 @@ fi
 if [ $mode = "invert" ] || [ $mode = "both" ]; then 
 
 
-    echo ls "$infile"_frames
-    for i in `ls "$infile"_frames`; do
-        #echo invertscan -"$invertscan" "$infile""_frames/"$i
-        invertscan -m -$invertscan "$infile""_frames/"$i
-        mkdir -p "$infile"_frames_P
-        mv "${i%.tif}"_P.tif "$infile"_frames_P
+    for ((i=0;i<${#invertfiles[*]};i++)); do 
+        invertscan -m1 ${invertfiles[i]}
     done
 
 
