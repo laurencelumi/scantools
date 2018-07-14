@@ -224,7 +224,7 @@ if [ $approach = "m_printing_density" ]; then
 
     echo "Normalised values are:"
     echo "       max      min       j"
-#         Green: 0.358328 0.0297856 0.083124
+    #     Green: 0.358328 0.0297856 0.083124
     echo "Red:  " $1 $4 $7
     echo "Green:" $2 $5 $8
     echo "Blue: " $3 $6 $9
@@ -266,16 +266,16 @@ if [ $approach = "m_printing_density" ]; then
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     #    convert $infile[0] -strip $CSPACE \
-    #        -channel R -fx "DAB=-log(u)-(-log($R_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-    #        -channel G -fx "DAB=-log(u)-(-log($G_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-    #        -channel B -fx "DAB=-log(u)-(-log($B_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-    #        -colorspace sRGB \
-    #        -set comment "$COMMENT" $ZIP "$outfile"
+        #        -channel R -fx "DAB=-log(u)-(-log($R_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
+        #        -channel G -fx "DAB=-log(u)-(-log($G_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
+        #        -channel B -fx "DAB=-log(u)-(-log($B_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
+        #        -colorspace sRGB \
+        #        -set comment "$COMMENT" $ZIP "$outfile"
 
 
     #converting to a linear scale is rougly grade 00 paper for ilford
 
-DEBUG set -x;
+    DEBUG set -x;
 
     convert -size 65536x1 xc: \
         -fx "i/(w-1)" \
@@ -284,16 +284,26 @@ DEBUG set -x;
         -channel B -fx "DAB=-log(u)-(-log($B_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
         -set comment "$COMMENT" $ZIP "$tmpprefix"_clut.tif
 
-if [ "$debug" -eq 2 ]; then
-    convert -size 65536x1 xc: \
-        -fx "i/(w-1)" \
-        -channel B -fx "debug(DAB=-log(u)-(-log($B_BASE)));debug((((10^(DAB*.6))*$scale)-$scale)/QuantumRange)" \
-        null:
-fi
+    if [ "$debug" -eq 2 ]; then
+        convert -size 65536x1 xc: \
+            -fx "i/(w-1)" \
+            -channel B -fx "debug(DAB=-log(u)-(-log($B_BASE)));debug((((10^(DAB*.6))*$scale)-$scale)/QuantumRange)" \
+            null:
+    fi
+
+    if [ ! -x "$(command -v exiftool)" ]; then
+        COMMENT="film base:$R_BASE dmax:$dmax Processed with invertscan"
+    else
+        exiftool=1
+    fi
 
     convert $infile[0] "$tmpprefix"_clut.tif -clut -strip $CSPACE \
         -colorspace sRGB \
         -set comment "$COMMENT" $ZIP "$outfile"
+
+    if [ $exiftool -eq 1 ]; then
+        exiftool -Model="FB $R_BASE,$G_BASE,$B_BASE DMAX $dmax" "$outfile"
+    fi
 
     echo inverting: "$outfile"
 
