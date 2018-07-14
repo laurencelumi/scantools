@@ -233,16 +233,16 @@ if [ $approach = "m_printing_density" ]; then
     B_BASE=$3
 
     # calculate the values to remove the mask
-    eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 -format \
-        "%[fx: -log(maxima.r) ] \
-        %[fx: -log(maxima.g) ] \
-        %[fx: -log(maxima.b) ] \
-        %[fx: -log(minima.r) ] \
-        %[fx: -log(minima.g) ] \
-        %[fx: -log(minima.b) ] \
-        %[fx: -log(minima.r) - (-log(maxima.r)) ] \
-        %[fx: -log(minima.g) - (-log(maxima.g)) ] \
-        %[fx: -log(minima.b) - (-log(maxima.b)) ] "\
+    eval set -- `convert xc: -format\
+        "%[fx: -log($1) ] \
+        %[fx: -log($2) ] \
+        %[fx: -log($3) ] \
+        %[fx: -log($4) ] \
+        %[fx: -log($5) ] \
+        %[fx: -log($6) ] \
+        %[fx: -log($4) - (-log($1)) ] \
+        %[fx: -log($5) - (-log($2)) ] \
+        %[fx: -log($6) - (-log($3)) ] "\
         info:`
 
     echo "log() values are:"
@@ -302,7 +302,7 @@ if [ $approach = "m_printing_density" ]; then
         -set comment "$COMMENT" $ZIP "$outfile"
 
     if [ $exiftool -eq 1 ]; then
-        exiftool -Model="FB $R_BASE,$G_BASE,$B_BASE DMAX $dmax" "$outfile"
+        exiftool -overwrite_original -Model="FB $R_BASE,$G_BASE,$B_BASE DMAX $dmax $9" "$outfile"
     fi
 
     echo inverting: "$outfile"
