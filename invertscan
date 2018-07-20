@@ -215,8 +215,17 @@ fi
 if [ $approach = "m_printing_density" ]; then
     DEBUG echo approach = $approach
 
+    
+    if [ "$debug" -eq 2 ]; then
+        convert "$infile[0]" $CSPACE -strip -blur 100x5 \
+        -shave 100x100 \
+            -set comment "$COMMENT" $ZIP "$tmpprefix"_input_for_calculations.tif
+    fi
+
     # calculate the film value and maxmim density, ideally this should be calculated before and passed in
-    eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 -format\
+    eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 \
+        -shave 100x100 \
+        -format\
         "%[fx: maxima.r ] %[fx: maxima.g ] %[fx: maxima.b ]\
         %[fx: minima.r ] %[fx: minima.g ] %[fx: minima.b ]\
         %[fx: minima.r/maxima.r ] %[fx: minima.g/maxima.g ] %[fx: minima.b/maxima.b ]"\
@@ -232,17 +241,21 @@ if [ $approach = "m_printing_density" ]; then
     G_BASE=$2
     B_BASE=$3
 
+    R_BASE=0.358396
+    G_BASE=0.358396
+    B_BASE=0.358396
+
     # calculate the values to remove the mask
     eval set -- `convert xc: -format\
-        "%[fx: -log($1) ] \
-        %[fx: -log($2) ] \
-        %[fx: -log($3) ] \
+        "%[fx: -log($R_BASE) ] \
+        %[fx: -log($G_BASE) ] \
+        %[fx: -log($B_BASE) ] \
         %[fx: -log($4) ] \
         %[fx: -log($5) ] \
         %[fx: -log($6) ] \
-        %[fx: -log($4) - (-log($1)) ] \
-        %[fx: -log($5) - (-log($2)) ] \
-        %[fx: -log($6) - (-log($3)) ] "\
+        %[fx: -log($4) - (-log($R_BASE)) ] \
+        %[fx: -log($5) - (-log($G_BASE)) ] \
+        %[fx: -log($6) - (-log($B_BASE)) ] "\
         info:`
 
     echo "log() values are:"
@@ -255,9 +268,7 @@ if [ $approach = "m_printing_density" ]; then
 
     echo RGB BASE: $R_BASE $G_BASE $B_BASE
 
-    scale=14000
-
-    dmax=1.1
+    dmax=1.2
     #dmax=2
     eval set -- `convert xc: -format "%[fx: 2^16/(10^($dmax*.6)) ]" info:`
     scale=$1
