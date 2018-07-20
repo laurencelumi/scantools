@@ -251,7 +251,7 @@ if [ $approach = "m_printing_density" ]; then
     echo "Green:" $2 $5 $8
     echo "Blue: " $3 $6 $9
 
-    dmax=$9
+    dmax_measured=$9
 
     echo RGB BASE: $R_BASE $G_BASE $B_BASE
 
@@ -302,7 +302,8 @@ if [ $approach = "m_printing_density" ]; then
         -set comment "$COMMENT" $ZIP "$outfile"
 
     if [ $exiftool -eq 1 ]; then
-        exiftool -overwrite_original -Model="FB $R_BASE,$G_BASE,$B_BASE DMAX $dmax $9" "$outfile"
+        #exiftool -overwrite_original -Model="FB $R_BASE,$G_BASE,$B_BASE DMAX $dmax $dmax_measured" "$outfile"
+        exiftool -overwrite_original -Model="FB $B_BASE DMAX $dmax $dmax_measured" "$outfile"
     fi
 
     echo inverting: "$outfile"
