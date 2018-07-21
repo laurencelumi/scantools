@@ -13,7 +13,7 @@ message1()
 	echo >&2 ""
 	echo >&2 "$PROGNAME:" "$@"
         cat << MESSAGE1
-USAGE: profilescan [-f fuzz ] [-m mirror ] [ -r rotate ]
+USAGE: $PROGNAME [-f fuzz ] [-m mirror ] [ -r rotate ]
 [ -a all boxes ] [-e extend] [-s show mask] [ -n number ] infile [outfile_prefix]
 USAGE: profilescan [-h or -help]
 
@@ -38,36 +38,27 @@ message2()
     echo >&2 "$PROGNAME:" "$@"
     cat  >&2 << MESSAGE2
 
-NAME: profilescan
+NAME: $PROGNAME 
 
-PURPOSE: to crop separate frames of a trimmed film strip
+PURPOSE: TODO
 
 
 Arguments:
 
--f          fuzz           fuzz value used a threshold for removing any white areas from the scan
-                           if brighest area of the film base is 75% then the threshold should be less than 25%
-                           expressed as (integer) percent 0 to 100;
-                           default=25
--m          mirror         flips the image after it has been cropped usefull if the negative was scanned emulsion down
--r          rotate         rotates the image after being cropped, positive integer <= 360
--a          all boxes      include crops of all boxes, inluding the gaps between frames usefull for debugging
--e          extend         extends the crop X pixels
--S          show mask      show how the mask was created usefull for debugging
 MESSAGE2
 exit 1
 }
 
+function DEBUG()
+{
+ [ ! "$debug" -eq 0 ] &&  $@
+}
+
 tmpdir="./"
-tmpprefix=$tmpdir"_is_"
-COMMENT="Processed with invertscan"
-M_GAMMA=1.625 #ISO film gamma
-R_GAMMA=1.807 #Portra 400 as default
-G_GAMMA=1.817 #Portra 400 as default
-B_GAMMA=1.563 #Portra 400 as default
-B_POINT=0.005 #not sure what do with this
-colorprofile=0
-monoprofile=0
+debug=0
+tmpprefix=$tmpdir"_ps_"
+COMMENT="Processed with profilescan"
+DEBUG echo -set comment "$COMMENT"
 PROF_DIR=$HOME/.scantools
 mkdir -p "$PROF_DIR"
 
@@ -79,15 +70,21 @@ do
             echo ""
             message2
             ;;
+        -d)	debug=1
+            ;;
+        -dd)	debug=2
+            ;;
         -l)    # list profile
             ls $PROF_DIR
             exit 0
             ;;
-        -c)    # colorprofile
-            colorprofile=1
+        -s)    # list profile
+            shift
+            profile_name="$1"
+            cat $PROF_DIR/$profile_name
+            exit 0
             ;;
-        -m)    # monoprofile
-            monoprofile=1
+        -fb)	mode=filmbase
             ;;
         -p)    # profile name
             shift
@@ -119,49 +116,34 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [[ $infile =~ .*.tif$ ]]; then
-    echo assuming the file being tif is saved in a linear colorspace, even though the metadata says otherwise
+    DEBUG echo assuming the input file being tif is saved in a linear colorspace, even though the metadata says otherwise
     CSPACE="-set colorspace RGB"
 fi
 
-#default to red use a flag to choose
-color="r"
+    DEBUG set -x;
 
-# calculate the values to remove the mask
-eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
-"%[fx: maxima.intensity/maxima.r ] "\
-"%[fx: maxima.intensity/maxima.g ] "\
-"%[fx: maxima.intensity/maxima.b ] "\
-"%[fx: -log(minima.$color) -  (-log(maxima.$color)) ] "\
- info:`
+if [ $mode = "filmbase" ]; then
+    DEBUG echo mode = $filmbase
+    
+    # calculate the filmbase values 
+    eval set -- `convert "$infile[0]" $CSPACE -strip \
+        -format\
+        "%[fx: mean.r ] %[fx: mean.g ] %[fx: mean.b ]"\
+        info:`
 
+    echo "Red:  " $1 $4 
+    echo "Green:" $2 $5
+    echo "Blue: " $3 $6
+    R_BASE=$1
+    G_BASE=$2
+    B_BASE=$3
 
-R_FILTER=$1
-G_FILTER=$2
-B_FILTER=$3
-MAXIMUM_DENSITY_ABOVE_FILM_BASE=$4
-echo Results are in:
-echo Filtration values to remove mask
-echo Red: $R_FILTER
-echo Green: $G_FILTER
-echo Red : $B_FILTER
-echo Maximum Density above film base
-echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
-
-if [ ! -z $profile_name ]; then
-    echo append data to profile $profile_name
-    DATE=`date '+%Y-%m-%d>%H:%M:%S'`
-    if [ $colorprofile -eq 0 -a $monoprofile -eq 0 ]; then
-        echo assuming color profile
-        colorprofile=1
+    if [ ! -z $profile_name ]; then 
+        echo append data to profile $profile_name 
+        DATE=`date '+%Y-%m-%d>%H:%M:%S'` 
+        echo "Date FB_red GB_green FB_blue" >> "$PROF_DIR/$profile_name" 
+        echo "$DATE $R_BASE $G_BASE $B_BASE" >> "$PROF_DIR/$profile_name" 
     fi
-    if [ $colorprofile -eq 1 ]; then
-        echo "Date Color Profile    Red   Green    Blue RED_GAMMA GREEN_GAMMA BLUE_GAMMA BLACK_POINT" >> "$PROF_DIR/$profile_name"
-        echo "c$DATE    $R_FILTER $G_FILTER $B_FILTER     $R_GAMMA       $G_GAMMA      $B_GAMMA       $B_POINT" >> "$PROF_DIR/$profile_name"
-    fi
-    if [ $monoprofile -eq 1 ]; then
-        echo "Date Monochrome Profile    MONO_GAMMA BLACK_POINT" >> "$PROF_DIR/$profile_name"
-        echo "m$DATE            $M_GAMMA       $B_POINT" >> "$PROF_DIR/$profile_name"
-    fi
+
 fi
-
 exit 0
