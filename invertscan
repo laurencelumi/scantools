@@ -52,32 +52,6 @@ MESSAGE2
 exit 1
 }
 
-calcmask()
-{
-#default to red use a flag to choose
-color="r"
-
-# calculate the values to remove the mask
-eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
-"%[fx: maxima.intensity/maxima.r ] "\
-"%[fx: maxima.intensity/maxima.g ] "\
-"%[fx: maxima.intensity/maxima.b ] "\
-"%[fx: -log(minima.$color) -  (-log(maxima.$color)) ] "\
-  info:`
-
-R_FILTER=$1
-G_FILTER=$2
-B_FILTER=$3
-MAXIMUM_DENSITY_ABOVE_FILM_BASE=$4
-echo Results are in:
-echo Filtration values to remove mask
-echo Red: $R_FILTER
-echo Green: $G_FILTER
-echo Red : $B_FILTER
-echo Maximum Density above film base
-echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
-}
-
 function DEBUG()
 {
  [ ! "$debug" -eq 0 ] &&  $@
@@ -91,6 +65,7 @@ DEBUG echo -set comment "$COMMENT"
 PROF_DIR=$HOME/.scantools
 ZIP="-compress zip"
 approach="m_printing_density"
+dmax=1.81 #max value cineon
 
 while [ $# -gt 0 ]
 do
@@ -118,11 +93,30 @@ do
             ;;
         -fb)    # profile name
             shift
-            fb="$1"
+            foo=(`echo $1 |sed 's/,/\n/g'`);
+            if [[ "${#foo[*]}" -eq 1 ]]; then
+                R_BASE="${foo[0]}"
+                G_BASE="${foo[0]}"
+                B_BASE="${foo[0]}"
+            else
+                R_BASE="${foo[0]}"
+                G_BASE="${foo[1]}"
+                B_BASE="${foo[2]}"
+            fi
+            for ((i=0;i<${#foo[*]};i++)); do 
+                if [[ ! "${foo[i]}" =~ ^[0-9]+\.?[0-9]*$ ]];then
+                    echo "--- fp=${foo[i]} must be a comma seperated positive float value ---"
+                    message1
+                fi
+            done
             ;;
         -dmax)    # profile name
             shift
             dmax="$1"
+            if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]];then
+                echo "--- dmax=$dmax must be a positive float value ---"
+                message1
+            fi
             ;;
         -)    # STDIN and end of arguments
             break
@@ -178,7 +172,6 @@ fi
 if [ $approach = "m_printing_density" ]; then
     DEBUG echo approach = $approach
 
-    
     if [ "$debug" -eq 2 ]; then
         convert "$infile[0]" $CSPACE -strip -blur 100x5 \
         -shave 100x100 \
@@ -196,12 +189,18 @@ if [ $approach = "m_printing_density" ]; then
     echo "Normalised values are:"
     echo "       max      min"
     #     Green: 0.358328 0.0297856
-    echo "Red:  " $1 $4 
+    echo "Red:  " $1 $4
     echo "Green:" $2 $5
     echo "Blue: " $3 $6
-    R_BASE=$1
-    G_BASE=$2
-    B_BASE=$3
+    if [[ -z $R_BASE ]];then
+        R_BASE=$1
+    fi
+    if [[ -z $G_BASE ]];then
+        G_BASE=$2
+    fi
+    if [[ -z $B_BASE ]];then
+        B_BASE=$3
+    fi
     R_MAX=$4
     G_MAX=$5
     B_MAX=$6
@@ -212,15 +211,14 @@ if [ $approach = "m_printing_density" ]; then
         G_BASE=$3
         B_BASE=$4
         echo using FB: $1 $R_BASE $G_BASE $B_BASE
-    else  
-        echo this need to be removed
-        R_BASE=0.358396
-        G_BASE=0.358396
-        B_BASE=0.358396
+    else
+        #R_BASE=0.358396
+        #G_BASE=0.358396
+        #B_BASE=0.358396
         echo using FB: $R_BASE $G_BASE $B_BASE
     fi
 
-    # calculate the values to remove the mask
+    # calculate the film density values
     eval set -- `convert xc: -format\
         "%[fx: -log($R_BASE) ] \
         %[fx: -log($G_BASE) ] \
@@ -243,8 +241,7 @@ if [ $approach = "m_printing_density" ]; then
 
     echo RGB BASE: $R_BASE $G_BASE $B_BASE
 
-    dmax=1.2
-    #dmax=2
+    #dmax=1.2
     eval set -- `convert xc: -format "%[fx: 2^16/(10^($dmax*.6)) ]" info:`
     scale=$1
     echo dmax: $dmax
@@ -474,7 +471,7 @@ newfile=tmp_"$infile"
 
 
 
-# calculate the values to remove the mask
+# calculate the min max values
 eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 100x5 -format \
 "%[fx: maxima.r ] "\
 "%[fx: maxima.g ] "\
@@ -492,7 +489,7 @@ echo Red: $1 $4 $7
 echo Green: $2 $5 $8
 echo Blue : $3 $6 $9
 
-# calculate the values to remove the mask
+# calculate the density values
 eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 100x5 -format \
 "%[fx: -log(maxima.r) ] "\
 "%[fx: -log(maxima.g) ] "\
