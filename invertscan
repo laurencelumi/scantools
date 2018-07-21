@@ -20,14 +20,15 @@ USAGE: invertscan [-h or -help]
 OPTIONS:
 
 -d          debug           show intermediate working files for debugging
+-dd         debug           show intermediate working files for debugging
 c1          color invert 1  use approach 1
 c2          color invert 2  use approach 2
 c3          color invert 3  use approach 3
 c4          color invert 4  use approach 4
-p           profile         color film profile
+p           profile         film base profile
 m1          monochrome      use approach 1
-m2          monochrome      use approach 2
-g           paper grade     BW paper grade
+dmax
+fb
 MESSAGE1
 exit 1
         }
@@ -77,52 +78,6 @@ echo Maximum Density above film base
 echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
 }
 
-removemask()
-{
-#removes the mask
-
-#rewrite this with -evaluate
-convert "$infile[0]" -strip $CSPACE  \
-    -channel R -fx "u * $R_FILTER" -fx "u?u:1"  \
-    -channel G -fx "u * $G_FILTER" -fx "u?u:1"  \
-    -channel B -fx "u * $B_FILTER" -fx "u?u:1"  \
-    -set comment "$COMMENT" "$tmpprefix"_nomask.tif
-
-#lets have look now that mask is gone
-eval set -- `convert "$tmpprefix"_nomask.tif $CSPACE  -strip -blur 0x7 -format \
-"%[fx: minima.intensity] "\
-"%[fx: -log(minima.intensity) -  (-log(maxima.intensity)) ] "\
-"%[fx: minima.intensity] "\
-  info:`
-
-Jn_MIN=$1
-MAXIMUM_DENSITY_ABOVE_FILM_BASE=$2
-
-echo NEW DATA with mask removed:
-echo Jn_Min
-echo $Jn_MIN
-echo Maximum Density above film base
-echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
-}
-
-calcBWHighlights()
-{
-#calculate the intensity of the highlights
-eval set -- `convert "$infile[0]" $CSPACE  -strip -blur 0x7 -format \
-"%[fx: minima.intensity] "\
-"%[fx: -log(minima.intensity) -  (-log(maxima.intensity)) ] "\
-"%[fx: minima.intensity] "\
-  info:`
-
-Jn_MIN=$1
-MAXIMUM_DENSITY_ABOVE_FILM_BASE=$2
-
-echo Highlights:
-echo Jn_Min
-echo $Jn_MIN
-echo Maximum Density above film base
-echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
-}
 function DEBUG()
 {
  [ ! "$debug" -eq 0 ] &&  $@
@@ -133,10 +88,6 @@ debug=0
 tmpprefix=$tmpdir"_is_"
 COMMENT="Processed with invertscan"
 DEBUG echo -set comment "$COMMENT"
-M_GAMMA=1.625 #ISO film gamma
-R_GAMMA=1.807 #Portra 400 as default
-G_GAMMA=1.817 #Portra 400 as default
-B_GAMMA=1.563 #Portra 400 as default
 PROF_DIR=$HOME/.scantools
 ZIP="-compress zip"
 approach="m_printing_density"
@@ -160,6 +111,18 @@ do
         -c8)	approach="c_printing_density"
             ;;
         -m1)	approach="m_printing_density" #monochrome printing density current default
+            ;;
+        -p)    # profile name
+            shift
+            profile_name="$1"
+            ;;
+        -fb)    # profile name
+            shift
+            fb="$1"
+            ;;
+        -dmax)    # profile name
+            shift
+            dmax="$1"
             ;;
         -)    # STDIN and end of arguments
             break
@@ -193,7 +156,7 @@ fi
 DEBUG   echo outfile: $outfile
 
 if [[ $infile =~ .*.tif$ ]]; then
-    DEBUG echo assuming the file being tif is saved in a linear colorspace, even though the metadata says otherwise
+    DEBUG echo assuming the input file being tif is saved in a linear colorspace, even though the metadata says otherwise
     CSPACE="-set colorspace RGB"
 fi
 
@@ -227,35 +190,47 @@ if [ $approach = "m_printing_density" ]; then
         -shave 100x100 \
         -format\
         "%[fx: maxima.r ] %[fx: maxima.g ] %[fx: maxima.b ]\
-        %[fx: minima.r ] %[fx: minima.g ] %[fx: minima.b ]\
-        %[fx: minima.r/maxima.r ] %[fx: minima.g/maxima.g ] %[fx: minima.b/maxima.b ]"\
+        %[fx: minima.r ] %[fx: minima.g ] %[fx: minima.b ]"\
         info:`
 
     echo "Normalised values are:"
-    echo "       max      min       j"
-    #     Green: 0.358328 0.0297856 0.083124
-    echo "Red:  " $1 $4 $7
-    echo "Green:" $2 $5 $8
-    echo "Blue: " $3 $6 $9
+    echo "       max      min"
+    #     Green: 0.358328 0.0297856
+    echo "Red:  " $1 $4 
+    echo "Green:" $2 $5
+    echo "Blue: " $3 $6
     R_BASE=$1
     G_BASE=$2
     B_BASE=$3
+    R_MAX=$4
+    G_MAX=$5
+    B_MAX=$6
 
-    R_BASE=0.358396
-    G_BASE=0.358396
-    B_BASE=0.358396
+    if [ ! -z $profile_name ]; then
+        set -- `tail -1 "$PROF_DIR"/"$profile_name"`
+        R_BASE=$2
+        G_BASE=$3
+        B_BASE=$4
+        echo using FB: $1 $R_BASE $G_BASE $B_BASE
+    else  
+        echo this need to be removed
+        R_BASE=0.358396
+        G_BASE=0.358396
+        B_BASE=0.358396
+        echo using FB: $R_BASE $G_BASE $B_BASE
+    fi
 
     # calculate the values to remove the mask
     eval set -- `convert xc: -format\
         "%[fx: -log($R_BASE) ] \
         %[fx: -log($G_BASE) ] \
         %[fx: -log($B_BASE) ] \
-        %[fx: -log($4) ] \
-        %[fx: -log($5) ] \
-        %[fx: -log($6) ] \
-        %[fx: -log($4) - (-log($R_BASE)) ] \
-        %[fx: -log($5) - (-log($G_BASE)) ] \
-        %[fx: -log($6) - (-log($B_BASE)) ] "\
+        %[fx: -log($R_MAX) ] \
+        %[fx: -log($G_MAX) ] \
+        %[fx: -log($B_MAX) ] \
+        %[fx: -log($R_MAX) - (-log($R_BASE)) ] \
+        %[fx: -log($G_MAX) - (-log($G_BASE)) ] \
+        %[fx: -log($B_MAX) - (-log($B_BASE)) ] "\
         info:`
 
     echo "log() values are:"
