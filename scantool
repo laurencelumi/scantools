@@ -62,7 +62,6 @@ else
     message2
 fi
 
-
 while [ $# -gt 0 ]
 do
     # get parameters
@@ -80,6 +79,30 @@ do
                 echo "--- framenumber=$framenumber must be a integer value  ---"
                 message1
             fi
+            ;;
+        -p)    # profile name
+            shift
+            options+=" -p $1"
+            ;;
+        -fb)    # profile name
+            shift
+            foo=(`echo $1 |sed 's/,/\n/g'`)
+            for ((i=0;i<${#foo[*]};i++)); do
+                if [[ ! "${foo[i]}" =~ ^[0-9]+\.?[0-9]*$ ]];then
+                    echo "--- fp=${foo[i]} must be a comma seperated positive float value ---"
+                    message1
+                fi
+            done
+            options+=" -fb $1"
+            ;;
+        -dmax)    # profile name
+            shift
+            dmax="$1"
+            if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]];then
+                echo "--- dmax=$dmax must be a positive float value ---"
+                message1
+            fi
+            options+=" -dmax $1"
             ;;
         -)    # STDIN and end of arguments
             break
@@ -123,15 +146,15 @@ invertfiles=()
 DEBUG set -x;
 
     #because the strips of film will contain at some gaps the fuzz threshhold can be increased
-    mapfile files < <(vtrimscan holder -f 10 $infile $tmpoutprefix | sed 's/^cropping //g' ) 
+    mapfile files < <(vtrimscan holder -f 10 $infile $tmpoutprefix | sed 's/^cropping //g' )
     DEBUG echo files: ${files[*]}
 
 
     for ((i=0;i<${#files[*]};i++)); do
 
-        mapfile filesJ < <(vtrimscan holder -r 90 ${files[i]} | grep -v orientating | sed 's/^cropping //g' ) 
+        mapfile filesJ < <(vtrimscan holder -r 90 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
         DEBUG echo files j:${filesJ[*]}
-        for ((j=0;j<${#filesJ[*]};j++)); do 
+        for ((j=0;j<${#filesJ[*]};j++)); do
             mapfile filesK < <(vtrimscan gap ${filesJ[j]} | sed 's/^cropping //g' )
             DEBUG echo files k:${filesK[*]}
             for ((k=0;k<${#filesK[*]};k++)); do
@@ -139,7 +162,7 @@ DEBUG set -x;
                 framenumber=$((framenumber+1))
                 mv ${filesK[k]} $OUTFILE
                 if [ "$debug" -gt 0 ]; then
-                    ln -f $OUTFILE ${filesK[k]} 
+                    ln -f $OUTFILE ${filesK[k]}
                 fi
                 echo saving $OUTFILE
                 invertfiles+=($OUTFILE)
@@ -148,11 +171,11 @@ DEBUG set -x;
     done
 fi
 
-if [ $mode = "invert" ] || [ $mode = "both" ]; then 
+if [ $mode = "invert" ] || [ $mode = "both" ]; then
 
 
-    for ((i=0;i<${#invertfiles[*]};i++)); do 
-        invertscan -m1 ${invertfiles[i]}
+    for ((i=0;i<${#invertfiles[*]};i++)); do
+        invertscan -m1 $options ${invertfiles[i]}
     done
 
 
