@@ -6,8 +6,9 @@ includes the following:
 
 - scantool
 - vtrimscan
-- profilescan
 - invertscan
+
+- profilescan
 - takepicture
 
 scantool:
@@ -38,15 +39,15 @@ vtrimscan
 
      seperates each frame and trims the film
 
-profilescan:
-
-    creates profile information for later use
-
 invertscan:
 
     inverts a scan using a variety of different approaches, which is controlled by flags
 
     invertscan -c3 someneg.tif
+
+profilescan:
+
+    creates profile information for later use
 
 takepicture:
 

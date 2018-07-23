@@ -1,0 +1,688 @@
+#!/bin/bash
+#
+# Licensing:
+#
+# Copyright © Laurence Lumi 2017
+# Licensed GNU General Public License v3
+# which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
+#
+
+PROGNAME=`basename $0`
+message1()
+	{
+	echo >&2 ""
+	echo >&2 "$PROGNAME:" "$@"
+        cat << MESSAGE1
+USAGE: $PROGNAME [-S show ] [c1  color 1 ] [ -c2 color2 ]
+[ -c3 color3 ] [-c4 color4] [ -p profile ] [-m1 mono1 ] [ -m2 mono2 ] [ -g grade ] infile [outfile_prefix]
+USAGE: invertscan [-h or -help]
+
+OPTIONS:
+
+-d          debug           show intermediate working files for debugging
+c1          color invert 1  use approach 1
+c2          color invert 2  use approach 2
+c3          color invert 3  use approach 3
+c4          color invert 4  use approach 4
+p           profile         color film profile
+m1          monochrome      use approach 1
+m2          monochrome      use approach 2
+g           paper grade     BW paper grade
+MESSAGE1
+exit 1
+        }
+
+message2()
+{
+    echo >&2 ""
+    echo >&2 "$PROGNAME:" "$@"
+    cat  >&2 << MESSAGE2
+
+NAME: $PROGNAME 
+
+PURPOSE: to 
+
+
+Arguments:
+
+TODO
+
+MESSAGE2
+exit 1
+}
+
+calcmask()
+{
+#default to red use a flag to choose
+color="r"
+
+# calculate the values to remove the mask
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+"%[fx: maxima.intensity/maxima.r ] "\
+"%[fx: maxima.intensity/maxima.g ] "\
+"%[fx: maxima.intensity/maxima.b ] "\
+"%[fx: -log(minima.$color) -  (-log(maxima.$color)) ] "\
+  info:`
+
+R_FILTER=$1
+G_FILTER=$2
+B_FILTER=$3
+MAXIMUM_DENSITY_ABOVE_FILM_BASE=$4
+echo Results are in:
+echo Filtration values to remove mask
+echo Red: $R_FILTER
+echo Green: $G_FILTER
+echo Red : $B_FILTER
+echo Maximum Density above film base
+echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
+}
+
+removemask()
+{
+#removes the mask
+
+#rewrite this with -evaluate
+convert "$infile[0]" -strip $CSPACE  \
+    -channel R -fx "u * $R_FILTER" -fx "u?u:1"  \
+    -channel G -fx "u * $G_FILTER" -fx "u?u:1"  \
+    -channel B -fx "u * $B_FILTER" -fx "u?u:1"  \
+    -set comment "$COMMENT" "$tmpprefix"_nomask.tif
+
+#lets have look now that mask is gone
+eval set -- `convert "$tmpprefix"_nomask.tif $CSPACE  -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: -log(minima.intensity) -  (-log(maxima.intensity)) ] "\
+"%[fx: minima.intensity] "\
+  info:`
+
+Jn_MIN=$1
+MAXIMUM_DENSITY_ABOVE_FILM_BASE=$2
+
+echo NEW DATA with mask removed:
+echo Jn_Min
+echo $Jn_MIN
+echo Maximum Density above film base
+echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
+}
+
+calcBWHighlights()
+{
+#calculate the intensity of the highlights
+eval set -- `convert "$infile[0]" $CSPACE  -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: -log(minima.intensity) -  (-log(maxima.intensity)) ] "\
+"%[fx: minima.intensity] "\
+  info:`
+
+Jn_MIN=$1
+MAXIMUM_DENSITY_ABOVE_FILM_BASE=$2
+
+echo Highlights:
+echo Jn_Min
+echo $Jn_MIN
+echo Maximum Density above film base
+echo $MAXIMUM_DENSITY_ABOVE_FILM_BASE
+}
+function DEBUG()
+{
+ [ ! "$debug" -eq 0 ] &&  $@
+}
+
+tmpdir="./"
+debug=0
+tmpprefix=$tmpdir"_is_"
+COMMENT="Processed with invertscan"
+M_GAMMA=1.625 #ISO film gamma
+R_GAMMA=1.807 #Portra 400 as default
+G_GAMMA=1.817 #Portra 400 as default
+B_GAMMA=1.563 #Portra 400 as default
+PROF_DIR=$HOME/.scantools
+ZIP="-compress zip"
+approach="c_invert_then_BP_then_gamma"
+
+while [ $# -gt 0 ]
+do
+    # get parameters
+    case "$1" in
+        -h|-help)    # help information
+            echo ""
+            message2
+            ;;
+        -d)	debug=1
+            ;;
+        -c1)	approach="c_invert_then_BP_then_gamma" #current default
+            ;;
+        -c2)	approach="c_invert_gamma_then_BP"
+            ;;
+        -c3)	approach="c_invert_gamma_only"
+            ;;
+        -c4)	approach="c_rethink"
+            ;;
+        -c5)	approach="c_invert_only_nothing_else"
+            ;;
+        -c6)	approach="c_invert_dpx"
+            ;;
+        -c7)	approach="c_rethink_2"
+            ;;
+        -c8)	approach="c_printing_density"
+            ;;
+        -m1)	approach="m_invert_then_BP_then_gamma"
+            ;;
+        -m2)	approach="m_invert_gamma_then_BP"
+            ;;
+        -m)	MIRROR="-flop"
+            ;;
+        -)    # STDIN and end of arguments
+            break
+            ;;
+        -*)    # any other - argument
+            echo "--- UNKNOWN OPTION ---"
+            message1
+            ;;
+        *)     # end of arguments
+            break
+            ;;
+    esac
+    shift   # next option
+done
+
+infile=$1
+outfile=$2
+
+if [ -z $infile ]; then
+    echo "must provide a filename"
+    message2
+fi
+if [ ! -f "$infile" -o ! -r "$infile" ]; then
+    echo "Cannot open: $infile"
+    exit 1
+fi
+
+if [ -z $outfile ]; then
+    outfile=`basename ${infile%".tif"}_P.tif`
+fi
+DEBUG   echo outfile: $outfile
+
+if [[ $infile =~ .*.tif$ ]]; then
+    DEBUG echo assuming the file being tif is saved in a linear colorspace, even though the metadata says otherwise
+    CSPACE="-set colorspace RGB"
+fi
+
+tmpprefix="$tmpprefix"`basename "${infile%.tif}"`
+DEBUG echo tmpprefix $tmpprefix
+
+
+
+#K=Jn_MIN^GAMMA
+#$K should be in the following range put a test in there so where
+#0.000001 ≤ $K ≤ 0.001
+
+if [ $approach = "c_invert_gamma_then_BP" ]; then
+    echo approach = $approach
+
+    calcmask
+    removemask
+
+    #convert per cfs-244
+    convert "$tmpprefix"_nomask.tif -strip $CSPACE \
+        -channel R -fx "($Jn_MIN/u)^$R_GAMMA" \
+        -channel G -fx "($Jn_MIN/u)^$G_GAMMA" \
+        -channel B -fx "($Jn_MIN/u)^$B_GAMMA" \
+        -colorspace sRGB \
+        -set comment "$COMMENT" "$tmpprefix"_inverted_with_gamma.tif
+
+    #there is still some funky stuff in IM-6.9.7-4 which means the colorspace and gamma is not quite working as expected, this at the moment should give the same result as above
+    #PUT ASIDE UNTIL I FIGURE OUT THE IM BUG
+    convert "$tmpprefix"_nomask.tif -strip $CSPACE \
+        -separate \
+        \( -clone 0 -poly "$Jn_MIN,-1" -poly "1,$R_GAMMA" \) -swap 0,3 -delete 3 \
+        \( -clone 1 -poly "$Jn_MIN,-1" -poly "1,$G_GAMMA" \) -swap 1,3 -delete 3 \
+        \( -clone 2 -poly "$Jn_MIN,-1" -poly "1,$B_GAMMA" \) -swap 2,3 -delete 3 \
+        $CSPACE \
+        -combine -type TrueColor \
+        -set comment "$COMMENT" "$tmpprefix"_inverted_with_gamma_2.tif
+
+    #blackpoint per cfs-243
+    #calculating BP
+    #note previous operation save the filed non-linear
+    eval set -- `convert "$tmpprefix"_inverted_with_gamma.tif -colorspace RGB -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: maxima.intensity] "\
+  info:`
+
+    echo BP DATA:$*
+
+    BP=$1
+
+    #note previous operation save the filed non-linear
+    convert "$tmpprefix"_inverted_with_gamma.tif -strip -colorspace RGB \
+        +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+fi
+
+if [ $approach = "c_invert_then_BP_then_gamma" ]; then
+    echo approach = $approach
+
+    calcmask
+    removemask
+
+    #invert only no gamma
+    convert "$tmpprefix"_nomask.tif -strip $CSPACE  \
+        -channel R -fx "($Jn_MIN/u)" \
+        -channel G -fx "($Jn_MIN/u)" \
+        -channel B -fx "($Jn_MIN/u)" \
+        -colorspace sRGB \
+        -set comment "$COMMENT" "$tmpprefix"_inverted_only.tif
+
+    #blackpoint per cfs-243
+    #calculating BP
+    #note previous operation save the filed non-linear
+    eval set -- `convert "$tmpprefix"_inverted_only.tif -colorspace RGB -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: maxima.intensity] "\
+  info:`
+
+    echo BP DATA:$*
+
+    BP=$1
+
+    #note previous operation save the filed non-linear
+    convert "$tmpprefix"_inverted_only.tif -strip -colorspace RGB \
+        +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
+        -set comment "$COMMENT" $ZIP "$tmpprefix"_inverted_with_bp.tif
+
+    #invert only no gamma
+    convert "$tmpprefix"_inverted_with_bp.tif -strip -colorspace RGB  \
+        -channel R -fx "u^$R_GAMMA" \
+        -channel G -fx "u^$G_GAMMA)" \
+        -channel B -fx "u^$B_GAMMA)" \
+        -colorspace sRGB \
+        -set comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+if [ $approach = "c_invert_gamma_only" ]; then
+    echo approach = $approach
+
+    calcmask
+    removemask
+
+    #convert per cfs-244
+    convert "$tmpprefix"_nomask.tif -strip $CSPACE \
+        -channel R -fx "($Jn_MIN/u)^$R_GAMMA" \
+        -channel G -fx "($Jn_MIN/u)^$G_GAMMA" \
+        -channel B -fx "($Jn_MIN/u)^$B_GAMMA" \
+        -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+if [ $approach = "c_rethink" ]; then
+    echo approach = $approach
+
+# calculate the values of the highlights
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 10x7 -format \
+"%[fx: minima.r ] "\
+"%[fx: minima.g ] "\
+"%[fx: minima.b ] "\
+  info:`
+
+R_HIGHLIGHT=$1
+G_HIGHLIGHT=$2
+B_HIGHLIGHT=$3
+
+    #convert per cfs-244
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "u>0?($R_HIGHLIGHT/u)^$R_GAMMA:1" \
+        -channel G -fx "u>0?($G_HIGHLIGHT/u)^$G_GAMMA:1" \
+        -channel B -fx "u>0?($B_HIGHLIGHT/u)^$B_GAMMA:1" \
+        -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+if [ $approach = "c_invert_only_nothing_else" ]; then
+    echo approach = $approach
+
+# calculate the values of the highlights
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+"%[fx: minima.r ] "\
+"%[fx: minima.g ] "\
+"%[fx: minima.b ] "\
+  info:`
+
+R_HIGHLIGHT=$1
+G_HIGHLIGHT=$2
+B_HIGHLIGHT=$3
+
+    #convert per cfs-244
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "($R_HIGHLIGHT/u)" \
+        -channel G -fx "($G_HIGHLIGHT/u)" \
+        -channel B -fx "($B_HIGHLIGHT/u)" \
+        -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+if [ $approach = "c_invert_dpx" ]; then
+    echo approach = $approach
+
+# calculate the values of the film base
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+  info:`
+
+R_BASE=$1
+G_BASE=$2
+B_BASE=$3
+
+    #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DAB=-log(u)-(-log($1));(95+500*DAB)/1024)" \
+        -channel G -fx "DAB=-log(u)-(-log($2));(95+500*DAB)/1024" \
+        -channel B -fx "DAB=-log(u)-(-log($3));(95+500*DAB)/1024" \
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+
+    #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DAB=-log(u)-(-log($1));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel G -fx "DAB=-log(u)-(-log$2));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel B -fx "DAB=-log(u)-(-log($3));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP dpx_lin_"$outfile"
+
+    #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DAB=-log(u)-(-log($1));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel G -fx "DAB=-log(u)-(-log$2));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel B -fx "DAB=-log(u)-(-log($3));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP dpx_lin_2"$outfile"
+
+fi
+
+if [ $approach = "c_rethink_2" ]; then
+    echo approach = $approach
+
+#calcmask
+
+# calculate the values to remove the mask
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+"%[fx: minima.r ] "\
+"%[fx: minima.g ] "\
+"%[fx: minima.b ] "\
+"%[fx: minima.r/maxima.r ] "\
+"%[fx: minima.g/maxima.g ] "\
+"%[fx: minima.b/maxima.b ] "\
+  info:`
+
+echo Results are:
+echo Red: $1 $4 $7
+echo Green: $2 $5 $8
+echo Blue : $3 $6 $9
+
+# calculate the values to remove the mask
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 -format \
+"%[fx: -log(maxima.r) ] "\
+"%[fx: -log(maxima.g) ] "\
+"%[fx: -log(maxima.b) ] "\
+"%[fx: -log(minima.r) ] "\
+"%[fx: -log(minima.g) ] "\
+"%[fx: -log(minima.b) ] "\
+"%[fx: -log(minima.r) - (-log(maxima.r)) ] "\
+"%[fx: -log(minima.g) - (-log(maxima.g)) ] "\
+"%[fx: -log(minima.b) - (-log(maxima.b)) ] "\
+  info:`
+
+echo LOG Results are:
+echo Red: $1 $4 $7
+echo Green: $2 $5 $8
+echo Blue : $3 $6 $9
+
+MAXD=$9
+
+#eval set -- `convert "$infile[0]" $CSPACE -strip -blur 0x7 -format \
+# calculate the values of the film base
+eval set -- `convert "$infile[0]" $CSPACE -strip -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+  info:`
+
+R_BASE=$1
+G_BASE=$2
+B_BASE=$3
+
+#R_BASE=0.664352
+#G_BASE=0.677719
+#B_BASE=0.641433
+
+
+echo RGB: $R_BASE $G_BASE $B_BASE
+
+# calculate the values of the film base
+#eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x7 -format \
+#"%[fx: maxima.r ] "\
+#"%[fx: maxima.g ] "\
+#"%[fx: maxima.b ] "\
+#  info:`
+
+#R_BASE=$1
+#G_BASE=$2
+#B_BASE=$3
+
+#echo RGB: $R_BASE $G_BASE $B_BASE
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+#    convert $infile[0] -strip $CSPACE \
+#        -channel R -fx "DAB=log(1/u)-log(1/$1);debug(DAB);debug(1/10^(DAB*.6));(1/10^(DAB*.6))" \
+#        -channel G -fx "DAB=log(1/u)-log(1/$2);;(1/10^(DAB*.6))" \
+#        -channel B -fx "DAB=log(1/u)-log(1/$3);;(1/10^(DAB*.6))" \
+#        -colorspace sRGB \
+#        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+#    convert $infile[0] -strip $CSPACE \
+#       -channel R -fx "DAB=log(1/u)-log(1/$1);;(10^(DAB*.6))*.1" \
+#        -channel G -fx "DAB=log(1/u)-log(1/$2);;(10^(DAB*.6))*.1" \
+#        -channel B -fx "DAB=log(1/u)-log(1/$3);;(10^(DAB*.6))*.1" \
+#        -colorspace sRGB \
+#        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DAB=log(1/u)-log(1/$1);(10^((DAB-$MAXD)*.6))" \
+        -channel G -fx "DAB=log(1/u)-log(1/$2);(10^((DAB-$MAXD)*.6))" \
+        -channel B -fx "DAB=log(1/u)-log(1/$3);(10^((DAB-$MAXD)*.6))" \
+        -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "DAB=log(1/u)-log(1/$1);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -channel G -fx "DAB=log(1/u)-log(1/$2);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -channel B -fx "DAB=log(1/u)-log(1/$3);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP _"$outfile"
+
+fi
+
+if [ $approach = "c_printing_density" ]; then
+    echo approach = $approach
+
+#scale the to match printing density
+newfile=tmp_"$infile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+#    convert $infile[0] -strip $CSPACE \
+#        -channel R -fx "u^1.7" \
+#        -channel G -fx "u^1.15" \
+#        $MIRROR -set comment "$COMMENT" $ZIP "$newfile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $infile[0] -strip $CSPACE \
+        -channel R -fx "u^1.12" \
+        -channel G -fx "u^1.05" \
+        $MIRROR -set comment "$COMMENT" $ZIP "$newfile"
+
+    #kodak 400
+    #convert $infile[0] -strip $CSPACE \
+    #    -channel R -fx "u^1.6" \
+    #    -channel G -fx "u^1.15" \
+    #    $MIRROR -set comment "$COMMENT" $ZIP "$newfile"
+
+#calcmask
+
+
+
+# calculate the values to remove the mask
+eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 100x5 -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+"%[fx: minima.r ] "\
+"%[fx: minima.g ] "\
+"%[fx: minima.b ] "\
+"%[fx: minima.r/maxima.r ] "\
+"%[fx: minima.g/maxima.g ] "\
+"%[fx: minima.b/maxima.b ] "\
+  info:`
+
+echo LOG Results are:
+echo Red: $1 $4 $7
+echo Green: $2 $5 $8
+echo Blue : $3 $6 $9
+
+# calculate the values to remove the mask
+eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 100x5 -format \
+"%[fx: -log(maxima.r) ] "\
+"%[fx: -log(maxima.g) ] "\
+"%[fx: -log(maxima.b) ] "\
+"%[fx: -log(minima.r) ] "\
+"%[fx: -log(minima.g) ] "\
+"%[fx: -log(minima.b) ] "\
+"%[fx: -log(minima.r) - (-log(maxima.r)) ] "\
+"%[fx: -log(minima.g) - (-log(maxima.g)) ] "\
+"%[fx: -log(minima.b) - (-log(maxima.b)) ] "\
+  info:`
+
+echo LOG Results are:
+echo Red: $1 $4 $7
+echo Green: $2 $5 $8
+echo Blue : $3 $6 $9
+
+MAXD=$9
+
+#eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 0x7 -format \
+# calculate the values of the film base
+eval set -- `convert "$newfile[0]" $CSPACE -strip -format \
+"%[fx: maxima.r ] "\
+"%[fx: maxima.g ] "\
+"%[fx: maxima.b ] "\
+  info:`
+
+R_BASE=$1
+G_BASE=$2
+B_BASE=$3
+
+echo RGB: $R_BASE $G_BASE $B_BASE
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    convert $newfile[0] -strip $CSPACE \
+        -channel R -fx "DAB=log(1/u)-log(1/$1);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -channel G -fx "DAB=log(1/u)-log(1/$2);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -channel B -fx "DAB=log(1/u)-log(1/$3);(((10^(DAB*.6))*7000)-7000)/QuantumRange" \
+        -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+
+
+    #rm $newfile
+
+fi
+
+if [ $approach = "m_invert_gamma_then_BP" ]; then
+    echo approach = $approach
+
+    calcBWHighlights
+
+    #convert per cfs-244
+    convert "$infile[0]" -strip $CSPACE  \
+        -fx "($Jn_MIN/u)^$M_GAMMA" \
+        -colorspace sRGB \
+        -set comment "$COMMENT" "$tmpprefix"_inverted_with_gamma.tif
+
+    #there is still some funky stuff in IM-6.9.7-4 which means the colorspace and gamma is not quite working as expected, this at the movent should give the same result as above
+    #PUT ASIDE UNTIL I FIGURE OUT THE IM BUG
+    convert "$infile[0]" -strip $CSPACE  \
+        -separate \
+        \( -clone 0 -poly "$Jn_MIN,-1" -poly "1,$M_GAMMA" \) -swap 0,3 -delete 3 \
+        $CSPACE \
+        -combine -type TrueColor \
+        -set comment "$COMMENT" "$tmpprefix"_inverted_with_gamma_2.tif
+
+    #blackpoint per cfs-243
+    #calculating BP
+    #note previous operation save the filed non-linear
+    eval set -- `convert "$tmpprefix"_inverted_with_gamma.tif -colorspace RGB -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: maxima.intensity] "\
+  info:`
+
+    echo BP DATA:$*
+
+    BP=$1
+
+    #note previous operation save the filed non-linear
+    convert "$tmpprefix"_inverted_with_gamma.tif -strip -colorspace RGB \
+        +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+fi
+
+if [ $approach = "m_invert_then_BP_then_gamma" ]; then
+    echo approach = $approach
+
+    calcBWHighlights
+
+    #invert only no gamma
+    convert "$infile[0]" -strip $CSPACE  \
+        -fx "($Jn_MIN/u)" \
+        -colorspace sRGB \
+        -set comment "$COMMENT" "$tmpprefix"_inverted_only.tif
+
+    #blackpoint per cfs-243
+    #calculating BP
+    #note previous operation save the filed non-linear
+    eval set -- `convert "$tmpprefix"_inverted_only.tif -colorspace RGB -strip -blur 0x7 -format \
+"%[fx: minima.intensity] "\
+"%[fx: maxima.intensity] "\
+  info:`
+
+    echo BP DATA:$*
+
+    BP=$1
+
+    #note previous operation save the filed non-linear
+    convert "$tmpprefix"_inverted_only.tif -strip -colorspace RGB \
+        +channel -fx " (u-$BP)/(1-$BP)" -colorspace sRGB \
+        -set comment "$COMMENT" $ZIP "$tmpprefix"_inverted_with_bp.tif
+
+    #invert only no gamma
+    convert "$tmpprefix"_inverted_with_bp.tif -strip -colorspace RGB  \
+        -fx "u^$M_GAMMA" \
+        -colorspace sRGB \
+        $MIRROR -set comment "$COMMENT" $ZIP "$outfile"
+
+fi
+
+
+
+if [ "$debug" -eq 0 ]; then
+    rm -f "$tmpprefix"*
+fi
+

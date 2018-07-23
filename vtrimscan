@@ -26,7 +26,7 @@ OPTIONS:
                            if brighest area of the film base is 75% then the threshold should be less than 25%
                            expressed as (integer) percent 0 to 100; default=25
 -f          fuzz           fuzz value used for a threshold to find area outside the frame, either the black film holder or the gaps between frames  
-                           expressed as (integer) percent 0 to 100; default=2
+                           expressed as (integer) percent 0 to 100; default=2 for gap and 10 for holder
 -m          mirror         mirrors left to right the scan before it is processed, usefull if the negative was scanned emulsion down
 -flip       flip          mirrors the scan vertically before it is processed, usefull if the negative was scanned emulsion down
 -r          rotate         rotates the scan before it is processed, positive integer <= 360
@@ -64,16 +64,17 @@ tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_vt_"
 filmbase=25
-fuzz=2
 framenumber=1
 pixel=100
 extend=0
 
 if [ "$1" = "holder" ]; then
     mode="holder"
+    fuzz=7
     shift
 elif [ "$1" = "gap" ]; then
     mode="gap"
+    fuzz=2
     shift
 else
     echo "must specify either holder or gap"
@@ -214,17 +215,16 @@ fi
 if [ $mode = "gap" ]; then 
     stripcolor=(`convert "$tmpoutprefix"1.png -strip -blur 7x7 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
+    #num=${#stripcolor[*]}
+    #echo num:$num
+    #for ((i=0;i<num;i++)); do
+    #    echo SC:${stripcolor[$i]}
+    #done
+    opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
 else
-    stripcolor=(`convert "$tmpoutprefix"1.png -strip -blur 7x7 -format \
-        "%[fx: minima.r * 100 ] %[fx: minima.g * 100 ] %[fx: minima.b * 100 ] " info:`)
+    opaque="black"
 fi
 
-#num=${#stripcolor[*]}
-#echo num:$num
-#for ((i=0;i<num;i++)); do
-#    echo SC:${stripcolor[$i]}
-#done
-opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
 
 #note sometimes convert reduces the png to 8bit if it can do so when it leaves it at 16bit this is probably because the fill has worked in funny way i.e. not all black and white
 convert "$tmpoutprefix"1.png -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpoutprefix"2.png
