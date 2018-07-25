@@ -13,30 +13,11 @@ message1()
 	echo >&2 ""
 	echo >&2 "$PROGNAME:" "$@"
         cat << MESSAGE1
-<<<<<<< HEAD
-USAGE: $PROGNAME [-f fuzz ] [-m mirror ] [ -r rotate ]
-[ -a all boxes ] [-e extend] [-s show mask] [ -n number ] infile [outfile_prefix]
-USAGE: profilescan [-h or -help]
-
-OPTIONS:
-
--f          fuzz           fuzz value used a threshold for removing any white areas from the scan
-                           if brighest area of the film base is 75% then the threshold should be less than 25%
-                           expressed as (integer) percent 0 to 100;
-                           default=25
--m          mirror         flips the image after it has been cropped usefull if the negative was scanned emulsion down
--r          rotate         rotates the image after being cropped, positive integer <= 360
--a          all boxes      include crops of all boxes, inluding the gaps between frames usefull for debugging
--e          extend         extends the crop X pixels
--s          show mask      show how the mask was created usefull for debugging
--n          frane number   the starting frame number to use file name defaults to #1
-=======
 USAGE: $PROGNAME [-d] [-dd] [-l] [-s name] [-fb] [-p name] infile
 USAGE: $PROGNAME [-h] [-help]
 
 OPTIONS:
 
->>>>>>> dev
 MESSAGE1
 exit 1
 	}
@@ -86,11 +67,7 @@ do
             ls $PROF_DIR
             exit 0
             ;;
-<<<<<<< HEAD
-        -s)    # list profile
-=======
         -s)    # show profile
->>>>>>> dev
             shift
             profile_name="$1"
             cat $PROF_DIR/$profile_name
