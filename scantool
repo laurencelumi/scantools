@@ -132,9 +132,9 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [ -z $outprefix ]; then
-    outprefix=${infile%".tif"}_
+    outprefix=${infile%".tif"}_frame
 else
-    outprefix=${outprefix%".tif"}_
+    outprefix=${outprefix%".tif"}
 fi
 tmpoutprefix="$tmpprefix"`basename "$outprefix"`
 DEBUG echo tmpoutprefix: $tmpoutprefix
@@ -157,7 +157,7 @@ DEBUG set -x;
             mapfile filesK < <(vtrimscan gap ${filesJ[j]} | sed 's/^cropping //g' )
             DEBUG echo files k:${filesK[*]}
             for ((k=0;k<${#filesK[*]};k++)); do
-                OUTFILE="$outprefix"frame-"$framenumber".tif
+                OUTFILE="$outprefix"-"$framenumber".tif
                 framenumber=$((framenumber+1))
                 mv ${filesK[k]} $OUTFILE
                 if [ "$debug" -gt 0 ]; then
