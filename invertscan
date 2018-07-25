@@ -13,17 +13,34 @@ message1()
 	echo >&2 ""
 	echo >&2 "$PROGNAME:" "$@"
         cat << MESSAGE1
+<<<<<<< HEAD
+USAGE: $PROGNAME [-S show ] [c1  color 1 ] [ -c2 color2 ]
+[ -c3 color3 ] [-c4 color4] [ -p profile ] [-m1 mono1 ] [ -m2 mono2 ] [ -g grade ] infile [outfile_prefix]
+USAGE: invertscan [-h or -help]
+=======
 USAGE: $PROGNAME [-d] [-dd] [-m1] [-p name] [-fb R,G,B] [-dmax value] infile [outfile_prefix]
 USAGE: $PROGNAME [-h] [-help]
+>>>>>>> dev
 
 OPTIONS:
 
 -d          debug           show intermediate working files for debugging
 -dd         debug           show intermediate working files for debugging
+<<<<<<< HEAD
+c1          color invert 1  use approach 1
+c2          color invert 2  use approach 2
+c3          color invert 3  use approach 3
+c4          color invert 4  use approach 4
+p           profile         film base profile
+m1          monochrome      use approach 1
+dmax
+fb
+=======
 -p          profile         saved profile with film base values
 -m1         monochrome      monochrome inversion results in a linear gamma similar to printing with 00 grade paper
 -dmax       dmax            max expected density above the film base    
 -fb         film base       either a single value or three comma seperated values. e.e. .035 or .35,035,035
+>>>>>>> dev
 MESSAGE1
 exit 1
         }
@@ -86,7 +103,11 @@ do
             shift
             profile_name="$1"
             ;;
+<<<<<<< HEAD
+        -fb)    # profile name
+=======
         -fb)    # film base values
+>>>>>>> dev
             shift
             foo=(`echo $1 |sed 's/,/\n/g'`)
             if [[ "${#foo[*]}" -eq 1 ]]; then
@@ -105,7 +126,11 @@ do
                 fi
             done
             ;;
+<<<<<<< HEAD
+        -dmax)    # profile name
+=======
         -dmax)    # dmax value
+>>>>>>> dev
             shift
             dmax="$1"
             if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]];then

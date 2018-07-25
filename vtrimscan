@@ -13,14 +13,22 @@ message1()
 	echo >&2 ""
 	echo >&2 "$PROGNAME:" "$@"
         cat << MESSAGE1
+<<<<<<< HEAD
+USAGE: $PROGNAME [-f fuzz ] [-m mirror ] [ -r rotate ]
+[ -a all boxes ] [-e extend] [-S show mask] [ -n number ] infile [outfile_prefix]
+USAGE: $PROGNAME [-h or -help]
+=======
 USAGE: $PROGNAME gap | holder [-d] [-dd] [-m] [-flip] [-r rotate] [-p pixel] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] infile [outfile_prefix]
 USAGE: $PROGNAME [-h ] [ -help ]
+>>>>>>> dev
 
 holder    removeholder   the script for trim the film holder
 gap       remove gap     the script will remove the film frame gaps
 
 OPTIONS:
 
+<<<<<<< HEAD
+=======
 
 -d          debug          provided usefull debuging and leaves intermediate files behind
 -dd         debug          more extensive debugging uses full height intermediate files, which may give a different result from no-debug
@@ -29,12 +37,24 @@ OPTIONS:
 -r          rotate         rotates the scan before it is processed, positive integer <= 360
 -p          pixelwidth     the smallest amount of horizontal pixel that could make a usefull image defaults: 250 
 -e          extend         extend crop on each side in pixels; integer; default=0  
+>>>>>>> dev
 -fb         filmbase       fuzz value used as threshold for removing any white areas from the scan
                            if brighest area of the film base is 75% then the threshold should be less than 25%
                            expressed as (integer) percent 0 to 100; default=25
 -f          fuzz           fuzz value used for a threshold to find area outside the frame, either the black film holder or the gaps between frames  
+<<<<<<< HEAD
+                           expressed as (integer) percent 0 to 100; default=2 for gap and 10 for holder
+-m          mirror         mirrors left to right the scan before it is processed, usefull if the negative was scanned emulsion down
+-flip       flip          mirrors the scan vertically before it is processed, usefull if the negative was scanned emulsion down
+-r          rotate         rotates the scan before it is processed, positive integer <= 360
+-d          debug          provided usefull debuging and leaves intermediate files behind
+-n          frame number   the starting frame number to use in file name; defaults to #1
+-p          pixelwidth     the smallest amount of horizontal pixel that could make a usefull image defaults: 100
+-e          extend         extend crop on each side in pixels; integer; default=0  
+=======
                            expressed as (integer) percent 0 to 100; default=3 for gap and 10 for holder
 -n          frame number   the starting frame number to use in file name; defaults to #1
+>>>>>>> dev
 MESSAGE1
 exit 1
 	}
@@ -60,6 +80,8 @@ function DEBUG()
 {
  [ ! "$debug" -eq 0 ] &&  $@
 }
+<<<<<<< HEAD
+=======
 # quicksorts positional arguments
 # return is in array qsort_ret
 # Note: iterative, NOT recursive! :)
@@ -88,13 +110,18 @@ qsort() {
       if ((${#larger[@]}>=2)); then stack+=( "$((end-${#larger[@]}+1))" "$end" ); fi
    done
 }
+>>>>>>> dev
 
 tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_vt_"
 filmbase=25
 framenumber=1
+<<<<<<< HEAD
+pixel=100
+=======
 pixel=250
+>>>>>>> dev
 extend=0
 
 if [ "$1" = "holder" ]; then
@@ -103,7 +130,11 @@ if [ "$1" = "holder" ]; then
     shift
 elif [ "$1" = "gap" ]; then
     mode="gap"
+<<<<<<< HEAD
+    fuzz=2
+=======
     fuzz=3
+>>>>>>> dev
     shift
 else
     echo "must specify either holder or gap"
@@ -225,7 +256,11 @@ if [ $mode = "gap" ]; then
     #remove any sprocket holes or missing bits of film use a default of 25% this mean the film base must be darker than 25%
     #this is necessary as the average of the white and dark may match the film base this not necessary when looking for the holder
     #may need to revist this
+<<<<<<< HEAD
+    tmpfile0="$tmpoutprefix"0.png
+=======
     tmpfile0="$tmpoutprefix"0work.tif
+>>>>>>> dev
     convert $infile -fuzz "$filmbase"% -fill black -opaque white "$tmpfile0"
 else
     #skip the fill step and just use input file directly
@@ -236,6 +271,15 @@ if [ "$debug" -eq 2 ]; then
     #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
     #caution this may have side effects as the logic is different compared to the low debug levels
     XY=`convert $infile -format "%wx%h" info:`
+<<<<<<< HEAD
+    convert "$tmpfile0" -scale x1! -scale $XY! "$tmpoutprefix"1.png
+else
+    convert "$tmpfile0" -scale x1! "$tmpoutprefix"1.png
+fi
+
+if [ $mode = "gap" ]; then 
+    stripcolor=(`convert "$tmpoutprefix"1.png -strip -blur 7x7 -format \
+=======
     convert "$tmpfile0" -scale x1! -scale $XY! "$tmpoutprefix"1work.tif
 else
     convert "$tmpfile0" -scale x1! "$tmpoutprefix"1work.tif
@@ -243,6 +287,7 @@ fi
 
 if [ $mode = "gap" ]; then 
     stripcolor=(`convert "$tmpoutprefix"1work.tif -strip -blur 7x7 -format \
+>>>>>>> dev
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
     #num=${#stripcolor[*]}
     #echo num:$num
@@ -256,25 +301,39 @@ fi
 
 
 #note sometimes convert reduces the png to 8bit if it can do so when it leaves it at 16bit this is probably because the fill has worked in funny way i.e. not all black and white
+<<<<<<< HEAD
+convert "$tmpoutprefix"1.png -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpoutprefix"2.png
+#morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
+#convert "$tmpoutprefix"2.png -morphology open "5x1:0,1,1,1,0" "$tmpoutprefix"3.png
+convert "$tmpoutprefix"2.png -morphology open "Rectangle:"$pixel"x1" "$tmpoutprefix"3.png
+=======
 convert "$tmpoutprefix"1work.tif -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpoutprefix"2work.tif
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
 #convert "$tmpoutprefix"2work.tif -morphology open "5x1:0,1,1,1,0" "$tmpoutprefix"3work.tif
 convert "$tmpoutprefix"2work.tif -morphology open "Rectangle:"$pixel"x1" "$tmpoutprefix"3work.tif
+>>>>>>> dev
 set +x
 
 arr=()
 OLD_IFS=$IFS
 IFS=$'\n'
+<<<<<<< HEAD
+arr=(`convert "$tmpoutprefix"3.png -type bilevel \
+=======
 arr=(`convert "$tmpoutprefix"3work.tif -type bilevel \
+>>>>>>> dev
 -define connected-components:verbose=true \
 -define connected-components:mean-color=true \
 -connected-components 4 \
 null: | sed 's/^[ ]*//' | tail -n +2`)
+<<<<<<< HEAD
+=======
 compare() { [[ ${1%:*} -lt ${2%%:*} ]]; }
 qsort compare ${arr[*]}
 arr=("${qsort_ret[@]}")
 #declare -p qsort_ret
 DEBUG declare -p arr
+>>>>>>> dev
 IFS=$OLD_IFS
 num=${#arr[*]}
 
