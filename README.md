@@ -13,6 +13,7 @@ includes the following:
 
 scantool:
 
+<<<<<<< HEAD
     takes a single scan of multiple films strips removes the holder and seperats each frame
 
     scantool fullscan.tif
@@ -20,6 +21,16 @@ scantool:
     or
 
     scantool -n 25 fullscan.tif
+=======
+    takes a single scan of multiple films strips removes the holder and seperats each frame and inverts it
+
+    scantool both fullscan.tif
+    scantool both -p profile dmax 1.8 fullscan.tif prefix_used_output_files
+
+    or
+
+    scantool frames fullscan.tif
+>>>>>>> dev
 
 vtrimscan
 

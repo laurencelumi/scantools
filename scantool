@@ -12,9 +12,14 @@ message1()
 	echo >&2 ""
 	echo >&2 "$PROGNAME:" "$@"
         cat << MESSAGE1
+<<<<<<< HEAD
 USAGE: $PROGNAME [-S show ] [c1  color 1 ] [ -c2 color2 ]
 [ -c3 color3 ] [-c4 color4] [ -p profile ] [-m1 mono1 ] [ -m2 mono2 ] [ -g grade ] infile [outfile_prefix]
 USAGE: $PROGNAME [-h or -help]
+=======
+USAGE: $PROGNAME frames | invert | both [-d] [-dd] [-n number] [-p name] [-fb R,G,B] [-dmax value] infile [outfile_prefix]
+USAGE: $PROGNAME [-h ]  [-help]
+>>>>>>> dev
 
 OPTIONS:
 
@@ -84,7 +89,11 @@ do
             shift
             options+=" -p $1"
             ;;
+<<<<<<< HEAD
         -fb)    # profile name
+=======
+        -fb)    # film base values
+>>>>>>> dev
             shift
             foo=(`echo $1 |sed 's/,/\n/g'`)
             for ((i=0;i<${#foo[*]};i++)); do
@@ -95,7 +104,11 @@ do
             done
             options+=" -fb $1"
             ;;
+<<<<<<< HEAD
         -dmax)    # profile name
+=======
+        -dmax)    # dmax value
+>>>>>>> dev
             shift
             dmax="$1"
             if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]];then
@@ -133,9 +146,15 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [ -z $outprefix ]; then
+<<<<<<< HEAD
     outprefix=${infile%".tif"}_
 else
     outprefix=${outprefix%".tif"}_
+=======
+    outprefix=${infile%".tif"}_frame
+else
+    outprefix=${outprefix%".tif"}
+>>>>>>> dev
 fi
 tmpoutprefix="$tmpprefix"`basename "$outprefix"`
 DEBUG echo tmpoutprefix: $tmpoutprefix
@@ -158,7 +177,11 @@ DEBUG set -x;
             mapfile filesK < <(vtrimscan gap ${filesJ[j]} | sed 's/^cropping //g' )
             DEBUG echo files k:${filesK[*]}
             for ((k=0;k<${#filesK[*]};k++)); do
+<<<<<<< HEAD
                 OUTFILE="$outprefix"frame-"$framenumber".tif
+=======
+                OUTFILE="$outprefix"-"$framenumber".tif
+>>>>>>> dev
                 framenumber=$((framenumber+1))
                 mv ${filesK[k]} $OUTFILE
                 if [ "$debug" -gt 0 ]; then

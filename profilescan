@@ -13,6 +13,7 @@ message1()
 	echo >&2 ""
 	echo >&2 "$PROGNAME:" "$@"
         cat << MESSAGE1
+<<<<<<< HEAD
 USAGE: $PROGNAME [-f fuzz ] [-m mirror ] [ -r rotate ]
 [ -a all boxes ] [-e extend] [-s show mask] [ -n number ] infile [outfile_prefix]
 USAGE: profilescan [-h or -help]
@@ -29,6 +30,13 @@ OPTIONS:
 -e          extend         extends the crop X pixels
 -s          show mask      show how the mask was created usefull for debugging
 -n          frane number   the starting frame number to use file name defaults to #1
+=======
+USAGE: $PROGNAME [-d] [-dd] [-l] [-s name] [-fb] [-p name] infile
+USAGE: $PROGNAME [-h] [-help]
+
+OPTIONS:
+
+>>>>>>> dev
 MESSAGE1
 exit 1
 	}
@@ -78,7 +86,11 @@ do
             ls $PROF_DIR
             exit 0
             ;;
+<<<<<<< HEAD
         -s)    # list profile
+=======
+        -s)    # show profile
+>>>>>>> dev
             shift
             profile_name="$1"
             cat $PROF_DIR/$profile_name
