@@ -304,14 +304,20 @@ for ((i=0;i<num;i++)); do
         x=$((x+$extend))
     fi
 
+    if [ $X -eq 1 ]; then
+        DEBUG echo skipping $i because it has X value of 1 XYxy $X $Y $x $y
+        continue;
+    fi
+
     if [ "$debug" -lt 2 ] && ( [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] ) ; then
         DEBUG echo skipping $i XYxy $X $Y $x $y
         continue;
     fi
+    DEBUG echo using ${arr[$i]}
     OUTFILE="$outprefix"frame-`printf "%03d" "$framenumber"`.tif
     framenumber=$((framenumber+1))
-    DEBUG set -x;
     echo cropping $OUTFILE
+    DEBUG set -x;
     convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $OUTFILE
     set +x
 done
