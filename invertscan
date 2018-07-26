@@ -22,7 +22,7 @@ OPTIONS:
 -dd         debug           show intermediate working files for debugging
 -p          profile         saved profile with film base values
 -m1         monochrome      monochrome inversion results in a linear gamma similar to printing with 00 grade paper
--dmax       dmax            max expected density above the film base    
+-dmax       dmax            max expected density above the film base
 -fb         film base       either a single value or three comma seperated values. e.e. .035 or .35,035,035
 
 MESSAGE1
@@ -141,7 +141,7 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [ -z $outfile ]; then
-    outfile=`basename ${infile%".tif"}_P.tif`
+    outfile=`basename ${infile%".tif"}-P.tif`
 fi
 DEBUG   echo outfile: $outfile
 

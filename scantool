@@ -157,7 +157,8 @@ DEBUG set -x;
             mapfile filesK < <(vtrimscan gap ${filesJ[j]} | sed 's/^cropping //g' )
             DEBUG echo files k:${filesK[*]}
             for ((k=0;k<${#filesK[*]};k++)); do
-                OUTFILE="$outprefix"-"$framenumber".tif
+                mkdir -p "$outprefix"
+                OUTFILE="$outprefix"/"$outprefix"-`printf "%03d" "$framenumber"`.tif
                 framenumber=$((framenumber+1))
                 mv ${filesK[k]} $OUTFILE
                 if [ "$debug" -gt 0 ]; then
@@ -174,7 +175,9 @@ if [ $mode = "invert" ] || [ $mode = "both" ]; then
 
 
     for ((i=0;i<${#invertfiles[*]};i++)); do
-        invertscan -m1 $options ${invertfiles[i]}
+        mkdir -p "$outprefix"-P
+        OUTFILE="$outprefix"-P/`basename ${invertfiles[i]%".tif"}-P.tif`
+        invertscan -m1 $options ${invertfiles[i]} $OUTFILE
     done
 
 

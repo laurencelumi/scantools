@@ -27,12 +27,12 @@ OPTIONS:
 -m          mirror         mirrors left to right the scan before it is processed, usefull if the negative was scanned emulsion down
 -flip       flip           mirrors the scan vertically before it is processed, usefull if the negative was scanned emulsion down
 -r          rotate         rotates the scan before it is processed, positive integer <= 360
--p          pixelwidth     the smallest amount of horizontal pixel that could make a usefull image defaults: 250 
--e          extend         extend crop on each side in pixels; integer; default=0  
+-p          pixelwidth     the smallest amount of horizontal pixel that could make a usefull image defaults: 250
+-e          extend         extend crop on each side in pixels; integer; default=0
 -fb         filmbase       fuzz value used as threshold for removing any white areas from the scan
                            if brighest area of the film base is 75% then the threshold should be less than 25%
                            expressed as (integer) percent 0 to 100; default=25
--f          fuzz           fuzz value used for a threshold to find area outside the frame, either the black film holder or the gaps between frames  
+-f          fuzz           fuzz value used for a threshold to find area outside the frame, either the black film holder or the gaps between frames
                            expressed as (integer) percent 0 to 100; default=3 for gap and 10 for holder
 -n          frame number   the starting frame number to use in file name; defaults to #1
 
@@ -153,7 +153,7 @@ do
                 message1
             fi
             ;;
-        -fb)    # filmbase 
+        -fb)    # filmbase
             shift
             filmbase="$1"
             if [[ ! "$filmbase" =~ ^[0-9]+$ ]] || [ "$filmbase" -lt 0 -o "$filmbase" -gt 100 ]; then
@@ -223,7 +223,7 @@ fi
 
 DEBUG set -x;
 
-if [ $mode = "gap" ]; then 
+if [ $mode = "gap" ]; then
     #remove any sprocket holes or missing bits of film use a default of 25% this mean the film base must be darker than 25%
     #this is necessary as the average of the white and dark may match the film base this not necessary when looking for the holder
     #may need to revist this
@@ -243,7 +243,7 @@ else
     convert "$tmpfile0" -scale x1! "$tmpoutprefix"1work.tif
 fi
 
-if [ $mode = "gap" ]; then 
+if [ $mode = "gap" ]; then
     stripcolor=(`convert "$tmpoutprefix"1work.tif -strip -blur 7x7 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
     #num=${#stripcolor[*]}
@@ -298,7 +298,7 @@ for ((i=0;i<num;i++)); do
     fi
     x="${array[2]}"
     y="${array[3]}"
-    
+
     if [ $extend -ne 0 ]; then
         X=$((X-($extend*2)))
         x=$((x+$extend))
@@ -308,7 +308,7 @@ for ((i=0;i<num;i++)); do
         DEBUG echo skipping $i XYxy $X $Y $x $y
         continue;
     fi
-    OUTFILE="$outprefix"frame-"$framenumber".tif
+    OUTFILE="$outprefix"frame-`printf "%03d" "$framenumber"`.tif
     framenumber=$((framenumber+1))
     DEBUG set -x;
     echo cropping $OUTFILE
