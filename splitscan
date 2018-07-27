@@ -1,0 +1,139 @@
+#!/bin/bash
+#
+# Licensing:
+#
+# Copyright © Laurence Lumi 2018
+# Licensed GNU General Public License v3
+# which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
+#
+
+PROGNAME=`basename $0`
+message1()
+	{
+	echo >&2 ""
+	echo >&2 "$PROGNAME:" "$@"
+        cat << MESSAGE1
+USAGE: $PROGNAME [-d] [-dd] [-q] [-h] [-t] infile [outfile_prefix]
+USAGE: $PROGNAME [-d] [-dd] [-quarter] [-half] [-three] infile [outfile_prefix]
+USAGE: $PROGNAME [-help]
+
+OPTIONS:
+
+MESSAGE1
+exit 1
+	}
+message2()
+{
+    echo >&2 ""
+    echo >&2 "$PROGNAME:" "$@"
+    cat  >&2 << MESSAGE2
+
+NAME: $PROGNAME
+
+PURPOSE: TODO
+
+
+Arguments:
+
+MESSAGE2
+exit 1
+}
+
+function DEBUG()
+{
+ [ ! "$debug" -eq 0 ] &&  $@
+}
+
+tmpdir="./"
+debug=0
+tmpprefix=$tmpdir"_sp_"
+COMMENT="Processed with splitscan"
+DEBUG echo -set comment "$COMMENT"
+PROF_DIR=$HOME/.scantools
+mkdir -p "$PROF_DIR"
+
+while [ $# -gt 0 ]
+do
+    # get parameters
+    case "$1" in
+        -help)    # help information note no -h
+            echo ""
+            message2
+            ;;
+        -d)	debug=1
+            ;;
+        -dd)	debug=2
+            ;;
+        -q|-quarter)
+            split="quarter"
+            ;;
+        -h|-half)
+            split="half"
+            ;;
+        -t|-three)
+            split="three_quarter"
+            ;;
+        -)    # STDIN and end of arguments
+            break
+            ;;
+        -*)    # any other - argument
+            echo "--- UNKNOWN OPTION ---"
+            message1
+            ;;
+        *)     # end of arguments
+            break
+            ;;
+    esac
+    shift   # next option
+done
+
+infile=$1
+outprefix=$2
+
+if [ -z $infile ]; then
+    echo "must provide a filename"
+    message2
+fi
+if [ ! -f "$infile" -o ! -r "$infile" ]; then
+    echo "Cannot open: $infile"
+    exit 1
+fi
+
+if [ -z $outprefix ]; then
+    outprefix=${infile%".tif"}_
+else
+    outprefix=${outprefix%".tif"}_
+fi
+DEBUG echo outprefix: $outprefix
+
+DEBUG set -x
+if [ "$split" = "quarter" ]; then
+    DEBUG echo split = $split
+
+    X1=`convert $infile -format "%[fx:  w *.25]" info:`
+    X2=`convert $infile -format "%[fx:  w *.75]" info:`
+elif [ "$split" = "half" ]; then
+    DEBUG echo split = $split
+
+    X1=`convert $infile -format "%[fx:  w *.5]" info:`
+    X2=`convert $infile -format "%[fx:  w *.5]" info:`
+elif [ "$split" = "three_quarter" ]; then
+    DEBUG echo split = $split
+
+    X1=`convert $infile -format "%[fx:  w *.75]" info:`
+    X2=`convert $infile -format "%[fx:  w *.25]" info:`
+else
+    echo "nothing to do, you must split by quarter, half or three (quarters)"
+    exit 1
+fi
+
+
+Y=`convert $infile -format "%y" info:`
+DEBUG echo X1, X2 and Y: $X1, $X2 and $Y
+
+convert $infile +repage -crop "$X1"x"$Y"+0+0 +repage "$outprefix"_A
+convert $infile +repage -crop "$X2"x"$Y"+"$X1"+0 +repage "$outprefix"_B
+echo spliting file:"$outprefix"_A
+echo spliting file:"$outprefix"_B
+
+exit 0
