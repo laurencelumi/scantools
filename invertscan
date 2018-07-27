@@ -13,7 +13,7 @@ message1()
 	echo >&2 ""
 	echo >&2 "$PROGNAME:" "$@"
         cat << MESSAGE1
-USAGE: $PROGNAME [-d] [-dd] [-m1] [-p name] [-fb R,G,B] [-dmax value] infile [outfile_prefix]
+USAGE: $PROGNAME [-d] [-dd] [-m1] [-p name] [-fb R,G,B] [-dmax value] infile [outfile]
 USAGE: $PROGNAME [-h] [-help]
 
 OPTIONS:
