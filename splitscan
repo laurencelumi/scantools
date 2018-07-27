@@ -131,8 +131,8 @@ fi
 Y=`convert $infile -format "%y" info:`
 DEBUG echo X1, X2 and Y: $X1, $X2 and $Y
 
-convert $infile +repage -crop "$X1"x"$Y"+0+0 +repage "$outprefix"_A
-convert $infile +repage -crop "$X2"x"$Y"+"$X1"+0 +repage "$outprefix"_B
+convert $infile +repage -crop "$X1"x"$Y"+0+0 +repage "$outprefix"A.tif
+convert $infile +repage -crop "$X2"x"$Y"+"$X1"+0 +repage "$outprefix"B.tif
 echo spliting file:"$outprefix"_A
 echo spliting file:"$outprefix"_B
 
