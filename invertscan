@@ -22,7 +22,7 @@ OPTIONS:
 -dd         debug           show intermediate working files for debugging
 -p          profile         saved profile with film base values
 -m1         monochrome      monochrome inversion results in a linear gamma similar to printing with 00 grade paper
--dmax       dmax            max expected density above the film base    
+-dmax       dmax            max expected density above the film base or use auto
 -fb         film base       either a single value or three comma seperated values. e.e. .035 or .35,035,035
 
 MESSAGE1
@@ -109,8 +109,8 @@ do
         -dmax)    # dmax value
             shift
             dmax="$1"
-            if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]];then
-                echo "--- dmax=$dmax must be a positive float value ---"
+            if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]] && [[ ! "$dmax" = "auto" ]];then
+                echo "--- dmax=$dmax must be a positive float value or auto---"
                 message1
             fi
             ;;
@@ -141,7 +141,7 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [ -z $outfile ]; then
-    outfile=`basename ${infile%".tif"}_P.tif`
+    outfile=`basename ${infile%".tif"}-P.tif`
 fi
 DEBUG   echo outfile: $outfile
 
@@ -237,7 +237,11 @@ if [ $approach = "m_printing_density" ]; then
 
     echo RGB BASE: $R_BASE $G_BASE $B_BASE
 
-    #dmax=1.2
+    if [ $dmax = "auto" ]; then
+        dmax=$dmax_measured
+        echo using auto calculated dmax
+    fi
+
     eval set -- `convert xc: -format "%[fx: 2^16/(10^($dmax*.6)) ]" info:`
     scale=$1
     echo dmax: $dmax

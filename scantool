@@ -97,8 +97,8 @@ do
         -dmax)    # dmax value
             shift
             dmax="$1"
-            if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]];then
-                echo "--- dmax=$dmax must be a positive float value ---"
+            if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]] && [[ ! "$dmax" = "auto" ]];then
+                echo "--- dmax=$dmax must be a positive float value or auto---"
                 message1
             fi
             options+=" -dmax $1"
@@ -145,19 +145,20 @@ invertfiles=()
 DEBUG set -x;
 
     #because the strips of film will contain at some gaps the fuzz threshhold can be increased
-    mapfile files < <(vtrimscan holder -f 10 $infile $tmpoutprefix | sed 's/^cropping //g' )
+    mapfile files < <(vtrimscan holder -f 7 $infile $tmpoutprefix | sed 's/^cropping //g' )
     DEBUG echo files: ${files[*]}
 
 
     for ((i=0;i<${#files[*]};i++)); do
 
-        mapfile filesJ < <(vtrimscan holder -r 90 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
+        mapfile filesJ < <(vtrimscan holder -r 90 -f 3 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
         DEBUG echo files j:${filesJ[*]}
         for ((j=0;j<${#filesJ[*]};j++)); do
             mapfile filesK < <(vtrimscan gap ${filesJ[j]} | sed 's/^cropping //g' )
             DEBUG echo files k:${filesK[*]}
             for ((k=0;k<${#filesK[*]};k++)); do
-                OUTFILE="$outprefix"-"$framenumber".tif
+                mkdir -p "$outprefix"
+                OUTFILE="$outprefix"/"$outprefix"-`printf "%03d" "$framenumber"`.tif
                 framenumber=$((framenumber+1))
                 mv ${filesK[k]} $OUTFILE
                 if [ "$debug" -gt 0 ]; then
@@ -174,7 +175,9 @@ if [ $mode = "invert" ] || [ $mode = "both" ]; then
 
 
     for ((i=0;i<${#invertfiles[*]};i++)); do
-        invertscan -m1 $options ${invertfiles[i]}
+        mkdir -p "$outprefix"-P
+        OUTFILE="$outprefix"-P/`basename ${invertfiles[i]%".tif"}-P.tif`
+        invertscan -m1 $options ${invertfiles[i]} $OUTFILE
     done
 
 
