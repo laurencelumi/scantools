@@ -97,8 +97,8 @@ do
         -dmax)    # dmax value
             shift
             dmax="$1"
-            if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]];then
-                echo "--- dmax=$dmax must be a positive float value ---"
+            if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]] && [[ ! "$dmax" = "auto" ]];then
+                echo "--- dmax=$dmax must be a positive float value or auto---"
                 message1
             fi
             options+=" -dmax $1"
