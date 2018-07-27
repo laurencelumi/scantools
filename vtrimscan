@@ -258,11 +258,11 @@ fi
 
 
 #note sometimes convert reduces the png to 8bit if it can do so when it leaves it at 16bit this is probably because the fill has worked in funny way i.e. not all black and white
-convert "$tmpoutprefix"1work.tif -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black "$tmpoutprefix"2work.tif
+#note the -colors 2 this is because sometime the entire image does not any area that would match the film base
+convert "$tmpoutprefix"1work.tif -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black -colors 2 "$tmpoutprefix"2work.tif
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
 #convert "$tmpoutprefix"2work.tif -morphology open "5x1:0,1,1,1,0" "$tmpoutprefix"3work.tif
 convert "$tmpoutprefix"2work.tif -morphology open "Rectangle:"$pixel"x1" "$tmpoutprefix"3work.tif
-set +x
 
 arr=()
 OLD_IFS=$IFS
@@ -272,6 +272,8 @@ arr=(`convert "$tmpoutprefix"3work.tif -type bilevel \
 -define connected-components:mean-color=true \
 -connected-components 4 \
 null: | sed 's/^[ ]*//' | tail -n +2`)
+set +x
+DEBUG echo array size is: ${#arr[*]}
 compare() { [[ ${1%:*} -lt ${2%%:*} ]]; }
 qsort compare ${arr[*]}
 arr=("${qsort_ret[@]}")
@@ -306,10 +308,12 @@ for ((i=0;i<num;i++)); do
 
     if [ $X -eq 1 ]; then
         DEBUG echo skipping $i because it has X value of 1 XYxy $X $Y $x $y
+        #this should not probably happen now that -colors 2 was added to the fill command
+        echo THIS IS HAPPENING
         continue;
     fi
 
-    if [ "$debug" -lt 2 ] && ( [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] ) ; then
+    if [ "$debug" -lt 2 ] && ( [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] || [ "$color" = "gray(0%)" ] ) ; then
         DEBUG echo skipping $i XYxy $X $Y $x $y
         continue;
     fi
