@@ -3,4 +3,8 @@ screenshots/
 
 *.swp
 
-research/
+private_samples/
+
+*.xlsx
+
+*.pdf
