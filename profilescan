@@ -109,9 +109,9 @@ if [[ $infile =~ .*.tif$ ]]; then
     CSPACE="-set colorspace RGB"
 fi
 
-    DEBUG set -x;
+DEBUG set -x;
 
-if [ $mode = "filmbase" ]; then
+if [ "$mode" = "filmbase" ]; then
     DEBUG echo mode = $filmbase
     
     # calculate the filmbase values 

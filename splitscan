@@ -128,7 +128,7 @@ else
 fi
 
 
-Y=`convert $infile -format "%y" info:`
+Y=`convert $infile -format "%h" info:`
 DEBUG echo X1, X2 and Y: $X1, $X2 and $Y
 
 convert $infile +repage -crop "$X1"x"$Y"+0+0 +repage "$outprefix"A.tif
