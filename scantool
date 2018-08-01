@@ -6,27 +6,30 @@
 # Licensed GNU General Public License v3
 # which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
 #
-PROGNAME=`basename $0`
-message1()
+progname=`basename $0`
+usage()
 	{
 	echo >&2 ""
-	echo >&2 "$PROGNAME:" "$@"
+	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $PROGNAME frames | invert | both [-d] [-dd] [-n number] [-p name] [-fb R,G,B] [-dmax value] infile [outfile_prefix]
-USAGE: $PROGNAME [-h ]  [-help]
+USAGE: $progname frames | invert | both [-d] [-dd] [-n number] [-p name] [-fb R,G,B] [-dmax value] [+z] infile [outfile_prefix]
+USAGE: $progname [-h ]  [-help]
 
 OPTIONS:
+
++z          zip     dont zip compress the output (the default is too compress the output)
+
 
 MESSAGE1
 exit 1
 	}
-message2()
+help()
 {
     echo >&2 ""
-    echo >&2 "$PROGNAME:" "$@"
+    echo >&2 "$progname:" "$@"
     cat  >&2 << MESSAGE2
 
-NAME: $PROGNAME
+NAME: $progname
 
 PURPOSE: to crop separate frames of a trimmed film strip
 
@@ -41,11 +44,18 @@ function DEBUG()
 {
  [ ! "$debug" -eq 0 ] &&  $@
 }
+function cleanup {
+if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
+    rm -f "$tmpfileprefix"*
+fi
+}
+trap cleanup EXIT
 
 tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_st_"
 framenumber=1
+zip="-z"
 
 if [ "$1" = "frames" ]; then
     mode="frames"
@@ -58,7 +68,7 @@ elif [ "$1" = "both" ]; then
     shift
 else
     echo "must specify either frames or invert or both"
-    message2
+    usage
 fi
 
 while [ $# -gt 0 ]
@@ -67,7 +77,7 @@ do
     case "$1" in
         -h|-help)    # help information
             echo ""
-            message2
+            help
             ;;
         -d)	debug=1
             ;;
@@ -76,7 +86,7 @@ do
             framenumber="$1"
             if [[ ! "$framenumber" =~ ^[0-9]+$ ]]; then
                 echo "--- framenumber=$framenumber must be a integer value  ---"
-                message1
+                usage
             fi
             ;;
         -p)    # profile name
@@ -89,7 +99,7 @@ do
             for ((i=0;i<${#foo[*]};i++)); do
                 if [[ ! "${foo[i]}" =~ ^[0-9]+\.?[0-9]*$ ]];then
                     echo "--- fp=${foo[i]} must be a comma seperated positive float value ---"
-                    message1
+                    usage
                 fi
             done
             options+=" -fb $1"
@@ -99,16 +109,19 @@ do
             dmax="$1"
             if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]] && [[ ! "$dmax" = "auto" ]];then
                 echo "--- dmax=$dmax must be a positive float value or auto---"
-                message1
+                usage
             fi
             options+=" -dmax $1"
+            ;;
+        +z)
+            zip="+z"
             ;;
         -)    # STDIN and end of arguments
             break
             ;;
         -*)    # any other - argument
             echo "--- UNKNOWN OPTION ---"
-            message1
+            usage
             ;;
         *)     # end of arguments
             break
@@ -124,7 +137,7 @@ outprefix=$2
 if [ -z $infile ]
 then
     echo "must provide a filename"
-    message2
+    usage
 fi
 if [ ! -f "$infile" -o ! -r "$infile" ]; then
     echo "Cannot open: $infile"
@@ -136,8 +149,8 @@ if [ -z $outprefix ]; then
 else
     outprefix=${outprefix%".tif"}
 fi
-tmpoutprefix="$tmpprefix"`basename "$outprefix"`
-DEBUG echo tmpoutprefix: $tmpoutprefix
+tmpfileprefix="$tmpprefix"`basename "$outprefix"`
+DEBUG echo tmpfileprefix: $tmpfileprefix
 DEBUG echo outprefix: $outprefix
 
 if [ $mode = "frames" ] || [ $mode = "both" ]; then
@@ -145,7 +158,7 @@ invertfiles=()
 DEBUG set -x;
 
     #because the strips of film will contain at some gaps the fuzz threshhold can be increased
-    mapfile files < <(vtrimscan holder -f 7 $infile $tmpoutprefix | sed 's/^cropping //g' )
+    mapfile files < <(vtrimscan holder -f 7 $infile $tmpfileprefix | sed 's/^cropping //g' )
     DEBUG echo files: ${files[*]}
 
 
@@ -154,18 +167,18 @@ DEBUG set -x;
         mapfile filesJ < <(vtrimscan holder -r 90 -f 3 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
         DEBUG echo files j:${filesJ[*]}
         for ((j=0;j<${#filesJ[*]};j++)); do
-            mapfile filesK < <(vtrimscan gap ${filesJ[j]} | sed 's/^cropping //g' )
+            mapfile filesK < <(vtrimscan gap $zip ${filesJ[j]} | sed 's/^cropping //g' )
             DEBUG echo files k:${filesK[*]}
             for ((k=0;k<${#filesK[*]};k++)); do
                 mkdir -p "$outprefix"
-                OUTFILE="$outprefix"/"$outprefix"-`printf "%03d" "$framenumber"`.tif
+                outfile="$outprefix"/"$outprefix"-`printf "%03d" "$framenumber"`.tif
                 framenumber=$((framenumber+1))
-                mv ${filesK[k]} $OUTFILE
+                mv ${filesK[k]} $outfile
                 if [ "$debug" -gt 0 ]; then
-                    ln -f $OUTFILE ${filesK[k]}
+                    ln -f $outfile ${filesK[k]}
                 fi
-                echo saving $OUTFILE
-                invertfiles+=($OUTFILE)
+                echo saving $outfile
+                invertfiles+=($outfile)
             done
         done
     done
@@ -176,13 +189,9 @@ if [ $mode = "invert" ] || [ $mode = "both" ]; then
 
     for ((i=0;i<${#invertfiles[*]};i++)); do
         mkdir -p "$outprefix"-P
-        OUTFILE="$outprefix"-P/`basename ${invertfiles[i]%".tif"}-P.tif`
-        invertscan -m1 $options ${invertfiles[i]} $OUTFILE
+        outfile="$outprefix"-P/`basename ${invertfiles[i]%".tif"}-P.tif`
+        invertscan -m1 $options $zip ${invertfiles[i]} $outfile
     done
 
 
-fi
-
-if [ "$debug" -eq 0 ]; then
-    rm -f "$tmpoutprefix"*
 fi
