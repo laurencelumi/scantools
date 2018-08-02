@@ -92,9 +92,7 @@ qsort() {
 }
 function cleanup {
 if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
-    set -x
     rm -f "$tmpfileprefix"*
-    set +x
 fi
 }
 trap cleanup EXIT
