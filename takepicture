@@ -13,7 +13,7 @@ usage()
 	echo >&2 ""
 	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $progname infile [outfile_prefix]
+USAGE: $progname infile [outfile]
 USAGE: takepicture [-h or -help]
 
 OPTIONS:
@@ -38,17 +38,24 @@ MESSAGE2
 exit 1
 }
 
+function DEBUG()
+{
+ [ ! "$debug" -eq 0 ] &&  $@
+}
+function cleanup {
+if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
+    rm -f "$tmpfileprefix"*
+fi
+}
+trap cleanup EXIT
+
+
 tmpdir="./"
+debug=0
 tmpprefix=$tmpdir"_tp_"
-COMMENT="Processed with takepicture"
-M_GAMMA=1.625 #ISO film gamma
-R_GAMMA=1.807 #Portra 400 as default
-G_GAMMA=1.817 #Portra 400 as default
-B_GAMMA=1.563 #Portra 400 as default
-B_POINT=0.005 #not sure what do with this
-PROF_DIR=$HOME/.scantools
+comment="Processed with takepicture"
+prof_dir=$HOME/.scantools
 zip="-compress zip"
-approach="c_invert_then_BP_then_gamma"
 showtmp=0
 
 while [ $# -gt 0 ]
@@ -58,6 +65,8 @@ do
         -h|-help)    # help information
             echo ""
             help
+            ;;
+        -d)	debug=1
             ;;
         -)    # STDIN and end of arguments
             break
@@ -86,32 +95,39 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [ -z $outfile ]; then
-    outfile=`basename ${infile%".jpg"}-P.tif`
+    outfile=`basename ${infile%".jpg"}-N.tif`
 fi
 tmpfileprefix="$tmpprefix"`basename "${outfile%.tif}"`
 DEBUG echo tmpfileprefix: $tmpfileprefix
-DEBUG echo outprefix: $outprefix
+DEBUG echo outfile: $outfile
 
 
 #step to a linear capture
 
-convert $infile -depth 16 -fx "Fy=((u)*100+16)/116;delta=6/29;Fy>delta?Fy^3:(Fy-16/116)3*delta^2" -type TrueColor "$tmpfileprefix"_linear_cap.tif
+#convert $infile -depth 16 -fx "Fy=((u)*100+16)/116;delta=6/29;Fy>delta?Fy^3:(Fy-16/116)3*delta^2" -type TrueColor "$tmpfileprefix"_linear_cap.tif
+
+convert $infile -depth 16 -type TrueColor -colorspace RGB "$tmpfileprefix"_linear_cap.tif
 
 #next invert
 
-Jn_MIN=0.015
+DEBUG set -x
+#Vision 3 Dmax from H-387
+r_base=0.152
+g_base=0.582
+b_base=0.845
 
-#convert "$tmpfileprefix"_linear_cap.tif -strip $CSPACE  \
-#     +channel -fx " (u-$BP)/(1-$BP)" \
-#    -set comment "$COMMENT" "$tmpfileprefix"_BP.tif
+min_exp=`convert -size 1x1 xc: -format\
+        "%[fx: 1/255 ]" \
+        info:`
 
+scale=1
 
 convert "$tmpfileprefix"_linear_cap.tif -strip \
-    -channel R -fx "Fx=log(u/(1/128));10^-(.15+(Fx>0?.5534*Fx:0))" \
-    -channel G -fx "Fx=log(u/(1/128));10^-(.7+(Fx>0?.5534*Fx:0))" \
-    -channel B -fx "Fx=log(u/(1/128));10^-(.8+(Fx>0?.6384*Fx:0))" \
-    -set comment "$COMMENT" "$tmpfileprefix"_inverted_only.tif
+    -channel R -fx "density=-log($min_exp)-(-log(u));density=density>0?density:0;densitygamma=density*0.6;filmdensity=densitygamma+$r_base;opacity=10^(-filmdensity);$scale*opacity" \
+    -channel G -fx "density=-log($min_exp)-(-log(u));density=density>0?density:0;densitygamma=density*0.6;filmdensity=densitygamma+$g_base;opacity=10^(-filmdensity);$scale*opacity" \
+    -channel B -fx "density=-log($min_exp)-(-log(u));density=density>0?density:0;densitygamma=density*0.6;filmdensity=densitygamma+$b_base;opacity=10^(-filmdensity);$scale*opacity" \
+    -set comment "$comment" "$tmpfileprefix"_linear_inverted.tif
 
-convert "$tmpfileprefix"_inverted_only.tif -set colorspace RGB -colorspace sRGB -set comment "$COMMENT" $outfile
+    convert "$tmpfileprefix"_linear_inverted.tif -set colorspace RGB -colorspace sRGB -set comment "$comment" $outfile
 
 exit 0

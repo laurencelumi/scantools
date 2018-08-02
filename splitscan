@@ -48,11 +48,11 @@ function DEBUG()
 tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_sp_"
-COMMENT="Processed with splitscan"
-DEBUG echo -set comment "$COMMENT"
-PROF_DIR=$HOME/.scantools
+comment="Processed with splitscan"
+DEBUG echo -set comment "$comment"
+prof_dir=$HOME/.scantools
 zip="+compress"
-mkdir -p "$PROF_DIR"
+mkdir -p "$prof_dir"
 
 while [ $# -gt 0 ]
 do

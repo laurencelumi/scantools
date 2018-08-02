@@ -46,10 +46,10 @@ function DEBUG()
 tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_ps_"
-COMMENT="Processed with profilescan"
-DEBUG echo -set comment "$COMMENT"
-PROF_DIR=$HOME/.scantools
-mkdir -p "$PROF_DIR"
+comment="Processed with profilescan"
+DEBUG echo -set comment "$comment"
+prof_dir=$HOME/.scantools
+mkdir -p "$prof_dir"
 
 while [ $# -gt 0 ]
 do
@@ -64,13 +64,13 @@ do
         -dd)	debug=2
             ;;
         -l)    # list profile
-            ls $PROF_DIR
+            ls $prof_dir
             exit 0
             ;;
         -s)    # show profile
             shift
             profile_name="$1"
-            cat $PROF_DIR/$profile_name
+            cat $prof_dir/$profile_name
             exit 0
             ;;
         -fb)	mode=filmbase
@@ -123,15 +123,15 @@ if [ "$mode" = "filmbase" ]; then
     echo "Red:  " $1 $4 
     echo "Green:" $2 $5
     echo "Blue: " $3 $6
-    R_BASE=$1
-    G_BASE=$2
-    B_BASE=$3
+    r_base=$1
+    g_base=$2
+    b_base=$3
 
     if [ ! -z $profile_name ]; then 
         echo append data to profile $profile_name 
         DATE=`date '+%Y-%m-%d>%H:%M:%S'` 
-        echo "Date FB_red GB_green FB_blue" >> "$PROF_DIR/$profile_name" 
-        echo "$DATE $R_BASE $G_BASE $B_BASE" >> "$PROF_DIR/$profile_name" 
+        echo "Date FB_red GB_green FB_blue" >> "$prof_dir/$profile_name" 
+        echo "$DATE $r_base $g_base $b_base" >> "$prof_dir/$profile_name" 
     fi
 
 fi
