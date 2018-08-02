@@ -7,27 +7,27 @@
 # which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
 #
 
-PROGNAME=`basename $0`
-message1()
+progname=`basename $0`
+usage()
 	{
 	echo >&2 ""
-	echo >&2 "$PROGNAME:" "$@"
+	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $PROGNAME [-d] [-dd] [-l] [-s name] [-fb] [-p name] infile
-USAGE: $PROGNAME [-h] [-help]
+USAGE: $progname [-d] [-dd] [-l] [-s name] [-fb] [-p name] infile
+USAGE: $progname [-h] [-help]
 
 OPTIONS:
 
 MESSAGE1
 exit 1
 	}
-message2()
+help()
 {
     echo >&2 ""
-    echo >&2 "$PROGNAME:" "$@"
+    echo >&2 "$progname:" "$@"
     cat  >&2 << MESSAGE2
 
-NAME: $PROGNAME 
+NAME: $progname 
 
 PURPOSE: TODO
 
@@ -46,10 +46,10 @@ function DEBUG()
 tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_ps_"
-COMMENT="Processed with profilescan"
-DEBUG echo -set comment "$COMMENT"
-PROF_DIR=$HOME/.scantools
-mkdir -p "$PROF_DIR"
+comment="Processed with profilescan"
+DEBUG echo -set comment "$comment"
+prof_dir=$HOME/.scantools
+mkdir -p "$prof_dir"
 
 while [ $# -gt 0 ]
 do
@@ -57,20 +57,20 @@ do
     case "$1" in
         -h|-help)    # help information
             echo ""
-            message2
+            help
             ;;
         -d)	debug=1
             ;;
         -dd)	debug=2
             ;;
         -l)    # list profile
-            ls $PROF_DIR
+            ls $prof_dir
             exit 0
             ;;
         -s)    # show profile
             shift
             profile_name="$1"
-            cat $PROF_DIR/$profile_name
+            cat $prof_dir/$profile_name
             exit 0
             ;;
         -fb)	mode=filmbase
@@ -84,7 +84,7 @@ do
             ;;
         -*)    # any other - argument
             echo "--- UNKNOWN OPTION ---"
-            message1
+            usage
             ;;
         *)     # end of arguments
             break
@@ -97,7 +97,7 @@ infile=$1
 
 if [ -z $infile ]; then
     echo "must provide a filename"
-    message2
+    usage
 fi
 if [ ! -f "$infile" -o ! -r "$infile" ]; then
     echo "Cannot open: $infile"
@@ -123,15 +123,15 @@ if [ "$mode" = "filmbase" ]; then
     echo "Red:  " $1 $4 
     echo "Green:" $2 $5
     echo "Blue: " $3 $6
-    R_BASE=$1
-    G_BASE=$2
-    B_BASE=$3
+    r_base=$1
+    g_base=$2
+    b_base=$3
 
     if [ ! -z $profile_name ]; then 
         echo append data to profile $profile_name 
         DATE=`date '+%Y-%m-%d>%H:%M:%S'` 
-        echo "Date FB_red GB_green FB_blue" >> "$PROF_DIR/$profile_name" 
-        echo "$DATE $R_BASE $G_BASE $B_BASE" >> "$PROF_DIR/$profile_name" 
+        echo "Date FB_red GB_green FB_blue" >> "$prof_dir/$profile_name" 
+        echo "$DATE $r_base $g_base $b_base" >> "$prof_dir/$profile_name" 
     fi
 
 fi

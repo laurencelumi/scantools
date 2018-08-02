@@ -7,14 +7,14 @@
 # which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
 #
 
-PROGNAME=`basename $0`
-message1()
+progname=`basename $0`
+usage()
 	{
 	echo >&2 ""
-	echo >&2 "$PROGNAME:" "$@"
+	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $PROGNAME [-d] [-dd] [-m1] [-p name] [-fb R,G,B] [-dmax value] infile [outfile]
-USAGE: $PROGNAME [-h] [-help]
+USAGE: $progname [-d] [-dd] [-m1] [-p name] [-fb R,G,B] [-dmax value] [-z] [+z] infile [outfile]
+USAGE: $progname [-h] [-help]
 
 OPTIONS:
 
@@ -24,21 +24,22 @@ OPTIONS:
 -m1         monochrome      monochrome inversion results in a linear gamma similar to printing with 00 grade paper
 -dmax       dmax            max expected density above the film base or use auto
 -fb         film base       either a single value or three comma seperated values. e.e. .035 or .35,035,035
+-z          zip             zip compress the output (the default is to use the same compression as the input)
++z          remove zip      do not compress the output regardless of input
 
 MESSAGE1
 exit 1
         }
 
-message2()
+help()
 {
     echo >&2 ""
-    echo >&2 "$PROGNAME:" "$@"
+    echo >&2 "$progname:" "$@"
     cat  >&2 << MESSAGE2
 
-NAME: $PROGNAME
+NAME: $progname
 
 PURPOSE: to
-
 
 Arguments:
 
@@ -52,14 +53,19 @@ function DEBUG()
 {
  [ ! "$debug" -eq 0 ] &&  $@
 }
+function cleanup {
+if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
+    rm -f "$tmpfileprefix"*
+fi
+}
+trap cleanup EXIT
 
 tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_is_"
-COMMENT="Processed with invertscan"
-DEBUG echo -set comment "$COMMENT"
-PROF_DIR=$HOME/.scantools
-ZIP="-compress zip"
+comment="Processed with invertscan"
+DEBUG echo -set comment "$comment"
+prof_dir=$HOME/.scantools
 approach="m_printing_density"
 dmax=1.81 #max value cineon
 
@@ -69,7 +75,7 @@ do
     case "$1" in
         -h|-help)    # help information
             echo ""
-            message2
+            help
             ;;
         -d)	debug=1
             ;;
@@ -91,35 +97,41 @@ do
             shift
             foo=(`echo $1 |sed 's/,/\n/g'`)
             if [[ "${#foo[*]}" -eq 1 ]]; then
-                R_BASE="${foo[0]}"
-                G_BASE="${foo[0]}"
-                B_BASE="${foo[0]}"
+                r_base="${foo[0]}"
+                g_base="${foo[0]}"
+                b_base="${foo[0]}"
             else
-                R_BASE="${foo[0]}"
-                G_BASE="${foo[1]}"
-                B_BASE="${foo[2]}"
+                r_base="${foo[0]}"
+                g_base="${foo[1]}"
+                b_base="${foo[2]}"
             fi
             for ((i=0;i<${#foo[*]};i++)); do
                 if [[ ! "${foo[i]}" =~ ^[0-9]+\.?[0-9]*$ ]]; then
                     echo "--- fp=${foo[i]} must be a comma seperated positive float value ---"
-                    message1
+                    usage
                 fi
             done
             ;;
         -dmax)    # dmax value
             shift
-            dmax="$1"
-            if [[ ! "$dmax" =~ ^[0-9]+\.?[0-9]*$ ]] && [[ ! "$dmax" = "auto" ]];then
-                echo "--- dmax=$dmax must be a positive float value or auto---"
-                message1
+            dmax_input="$1"
+            if [[ ! "$dmax_input" =~ ^[0-9]+\.?[0-9]*$ ]] && [[ ! "$dmax_input" = "auto" ]];then
+                echo "--- dmax_input=$dmax_input must be a positive float value or auto---"
+                usage
             fi
+            ;;
+        -z)
+            zip="-compress zip"
+            ;;
+        +z)
+            zip="+compress"
             ;;
         -)    # STDIN and end of arguments
             break
             ;;
         -*)    # any other - argument
             echo "--- UNKNOWN OPTION ---"
-            message1
+            usage
             ;;
         *)     # end of arguments
             break
@@ -133,7 +145,7 @@ outfile=$2
 
 if [ -z $infile ]; then
     echo "must provide a filename"
-    message2
+    usage
 fi
 if [ ! -f "$infile" -o ! -r "$infile" ]; then
     echo "Cannot open: $infile"
@@ -150,14 +162,14 @@ if [[ $infile =~ .*.tif$ ]]; then
     CSPACE="-set colorspace RGB"
 fi
 
-tmpprefix="$tmpprefix"`basename "${infile%.tif}"`
-DEBUG echo tmpprefix $tmpprefix
+tmpfileprefix="$tmpprefix"`date +%N``basename "${outfile%.tif}"`
+DEBUG echo tmpfileprefix $tmpfileprefix
 
 if [ "$debug" -eq 2 ]; then
     #this statement just shows the input that drivers the clup an input range 0 to (width)
     convert -size 1024x1 xc: \
         -fx "i/(w-1)" \
-        -set comment "$COMMENT" $ZIP "$tmpprefix"_input_clut1024.tif
+        -set comment "$comment" +compress "$tmpfileprefix"_input_clut1024.tif
     #this statement just shows the input that drivers the clup an input range 0 to (2^16) and how i/w-1 works perfectly
     convert -size 65536x1 xc: \
         -fx "i/(w-1)" \
@@ -171,7 +183,7 @@ if [ $approach = "m_printing_density" ]; then
     if [ "$debug" -eq 2 ]; then
         convert "$infile[0]" $CSPACE -strip -blur 100x5 \
         -shave 100x100 \
-            -set comment "$COMMENT" $ZIP "$tmpprefix"_input_for_calculations.tif
+            -set comment "$comment" +compress "$tmpfileprefix"_input_for_calculations.tif
     fi
 
     # calculate the film value and maxmim density, ideally this should be calculated before and passed in
@@ -188,43 +200,45 @@ if [ $approach = "m_printing_density" ]; then
     echo "Red:  " $1 $4
     echo "Green:" $2 $5
     echo "Blue: " $3 $6
-    if [[ -z $R_BASE ]];then
-        R_BASE=$1
+
+    maxmins=($*)
+    if [[ -z $r_base ]];then
+        r_base=$1
     fi
-    if [[ -z $G_BASE ]];then
-        G_BASE=$2
+    if [[ -z $g_base ]];then
+        g_base=$2
     fi
-    if [[ -z $B_BASE ]];then
-        B_BASE=$3
+    if [[ -z $b_base ]];then
+        b_base=$3
     fi
-    R_MAX=$4
-    G_MAX=$5
-    B_MAX=$6
+    r_max=$4
+    g_max=$5
+    b_max=$6
 
     if [ ! -z $profile_name ]; then
-        set -- `tail -1 "$PROF_DIR"/"$profile_name"`
-        R_BASE=$2
-        G_BASE=$3
-        B_BASE=$4
-        echo using FB: $1 $R_BASE $G_BASE $B_BASE
+        set -- `tail -1 "$prof_dir"/"$profile_name"`
+        r_base=$2
+        g_base=$3
+        b_base=$4
+        echo using FB: $1 $r_base $g_base $b_base
     else
-        #R_BASE=0.358396
-        #G_BASE=0.358396
-        #B_BASE=0.358396
-        echo using FB: $R_BASE $G_BASE $B_BASE
+        #r_base=0.358396
+        #g_base=0.358396
+        #b_base=0.358396
+        echo using FB: $r_base $g_base $b_base
     fi
 
     # calculate the film density values
     eval set -- `convert xc: -format\
-        "%[fx: -log($R_BASE) ] \
-        %[fx: -log($G_BASE) ] \
-        %[fx: -log($B_BASE) ] \
-        %[fx: -log($R_MAX) ] \
-        %[fx: -log($G_MAX) ] \
-        %[fx: -log($B_MAX) ] \
-        %[fx: -log($R_MAX) - (-log($R_BASE)) ] \
-        %[fx: -log($G_MAX) - (-log($G_BASE)) ] \
-        %[fx: -log($B_MAX) - (-log($B_BASE)) ] "\
+        "%[fx: -log($r_base) ] \
+        %[fx: -log($g_base) ] \
+        %[fx: -log($b_base) ] \
+        %[fx: -log($r_max) ] \
+        %[fx: -log($g_max) ] \
+        %[fx: -log($b_max) ] \
+        %[fx: -log($r_max) - (-log($r_base)) ] \
+        %[fx: -log($g_max) - (-log($g_base)) ] \
+        %[fx: -log($b_max) - (-log($b_base)) ] "\
         info:`
 
     echo "log() values are:"
@@ -235,11 +249,12 @@ if [ $approach = "m_printing_density" ]; then
 
     dmax_measured=$9
 
-    echo RGB BASE: $R_BASE $G_BASE $B_BASE
-
-    if [ $dmax = "auto" ]; then
+    densities=($*)
+    if [ $dmax_input = "auto" ]; then
         dmax=$dmax_measured
         echo using auto calculated dmax
+    else
+        dmax=$dmax_input
     fi
 
     eval set -- `convert xc: -format "%[fx: 2^16/(10^($dmax*.6)) ]" info:`
@@ -249,11 +264,11 @@ if [ $approach = "m_printing_density" ]; then
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     #    convert $infile[0] -strip $CSPACE \
-        #        -channel R -fx "DAB=-log(u)-(-log($R_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-        #        -channel G -fx "DAB=-log(u)-(-log($G_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-        #        -channel B -fx "DAB=-log(u)-(-log($B_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
+        #        -channel R -fx "dab=-log(u)-(-log($r_base));(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        #        -channel G -fx "dab=-log(u)-(-log($g_base));(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        #        -channel B -fx "dab=-log(u)-(-log($b_base));(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
         #        -colorspace sRGB \
-        #        -set comment "$COMMENT" $ZIP "$outfile"
+        #        -set comment "$comment" $zip "$outfile"
 
 
     #converting to a linear scale is rougly grade 00 paper for ilford
@@ -262,31 +277,42 @@ if [ $approach = "m_printing_density" ]; then
 
     convert -size 65536x1 xc: \
         -fx "i/(w-1)" \
-        -channel R -fx "DAB=-log(u)-(-log($R_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-        -channel G -fx "DAB=-log(u)-(-log($G_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-        -channel B -fx "DAB=-log(u)-(-log($B_BASE));(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-        -set comment "$COMMENT" $ZIP "$tmpprefix"_clut.tif
+        -channel R -fx "dab=-log(u)-(-log($r_base));(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        -channel G -fx "dab=-log(u)-(-log($g_base));(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        -channel B -fx "dab=-log(u)-(-log($b_base));(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        -set comment "$comment" +compress "$tmpfileprefix"_clut.tif
 
     if [ "$debug" -eq 2 ]; then
         convert -size 65536x1 xc: \
             -fx "i/(w-1)" \
-            -channel B -fx "debug(DAB=-log(u)-(-log($B_BASE)));debug((((10^(DAB*.6))*$scale)-$scale)/QuantumRange)" \
+            -channel B -fx "debug(dab=-log(u)-(-log($b_base)));debug((((10^(dab*.6))*$scale)-$scale)/QuantumRange)" \
             null:
     fi
 
     if [ ! -x "$(command -v exiftool)" ]; then
-        COMMENT="film base:$R_BASE dmax:$dmax Processed with invertscan"
+        comment="film base:$r_base dmax:$dmax Processed with invertscan"
     else
         exiftool=1
     fi
 
-    convert $infile[0] "$tmpprefix"_clut.tif -clut -strip $CSPACE \
+    convert $infile[0] "$tmpfileprefix"_clut.tif -clut -strip $CSPACE \
         -colorspace sRGB \
-        -set comment "$COMMENT" $ZIP "$outfile"
+        -set comment "$comment" $zip "$outfile"
 
     if [ $exiftool -eq 1 ]; then
-        #exiftool -overwrite_original -Model="FB $R_BASE,$G_BASE,$B_BASE DMAX $dmax $dmax_measured" "$outfile"
-        exiftool -overwrite_original -Model="FB $B_BASE DMAX $dmax $dmax_measured" "$outfile"
+
+        caption="fb used: $r_base, $g_base, $b_base\n"
+        caption+="min:     ${maxmins[0]}, ${maxmins[1]}, ${maxmins[2]}\n"
+        caption+="max:     ${maxmins[3]}, ${maxmins[4]}, ${maxmins[5]}\n"
+        caption+="log(min):${densities[0]}, ${densities[1]}, ${densities[2]}\n"
+        caption+="log(max):${densities[3]}, ${densities[4]}, ${densities[5]}\n"
+        caption+="dMax:    ${densities[6]}, ${densities[7]}, ${densities[8]}"
+        caption=`printf "$caption"`
+        DEBUG echo "$caption"
+
+        exiftool -overwrite_original -Model="DMAX $dmax_input $dmax_measured"\
+            "-iptc:caption-abstract=$caption"\
+            "$outfile"
     fi
 
     echo inverting: "$outfile"
@@ -305,32 +331,32 @@ eval set -- `convert "$infile[0]"  $CSPACE -strip -blur 0x7 -format \
 "%[fx: maxima.b ] "\
   info:`
 
-R_BASE=$1
-G_BASE=$2
-B_BASE=$3
+r_base=$1
+g_base=$2
+b_base=$3
 
     #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DAB=-log(u)-(-log($1));(95+500*DAB)/1024)" \
-        -channel G -fx "DAB=-log(u)-(-log($2));(95+500*DAB)/1024" \
-        -channel B -fx "DAB=-log(u)-(-log($3));(95+500*DAB)/1024" \
-        -set comment "$COMMENT" $ZIP "$outfile"
+        -channel R -fx "dab=-log(u)-(-log($1));(95+500*dab)/1024)" \
+        -channel G -fx "dab=-log(u)-(-log($2));(95+500*dab)/1024" \
+        -channel B -fx "dab=-log(u)-(-log($3));(95+500*dab)/1024" \
+        -set comment "$comment" $zip "$outfile"
 
     #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DAB=-log(u)-(-log($1));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
-        -channel G -fx "DAB=-log(u)-(-log$2));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
-        -channel B -fx "DAB=-log(u)-(-log($3));dpx=95+500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel R -fx "dab=-log(u)-(-log($1));dpx=95+500*dab;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel G -fx "dab=-log(u)-(-log$2));dpx=95+500*dab;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel B -fx "dab=-log(u)-(-log($3));dpx=95+500*dab;(10^((dpx-685)*0.002*.6))*4095/2^16" \
         -colorspace sRGB \
-        -set comment "$COMMENT" $ZIP dpx_lin_"$outfile"
+        -set comment "$comment" $zip dpx_lin_"$outfile"
 
     #convert per dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DAB=-log(u)-(-log($1));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
-        -channel G -fx "DAB=-log(u)-(-log$2));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
-        -channel B -fx "DAB=-log(u)-(-log($3));dpx=500*DAB;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel R -fx "dab=-log(u)-(-log($1));dpx=500*dab;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel G -fx "dab=-log(u)-(-log$2));dpx=500*dab;(10^((dpx-685)*0.002*.6))*4095/2^16" \
+        -channel B -fx "dab=-log(u)-(-log($3));dpx=500*dab;(10^((dpx-685)*0.002*.6))*4095/2^16" \
         -colorspace sRGB \
-        -set comment "$COMMENT" $ZIP dpx_lin_2"$outfile"
+        -set comment "$comment" $zip dpx_lin_2"$outfile"
 
 fi
 
@@ -385,16 +411,16 @@ eval set -- `convert "$infile[0]" $CSPACE -strip -format \
 "%[fx: maxima.b ] "\
   info:`
 
-R_BASE=$1
-G_BASE=$2
-B_BASE=$3
+r_base=$1
+g_base=$2
+b_base=$3
 
-#R_BASE=0.664352
-#G_BASE=0.677719
-#B_BASE=0.641433
+#r_base=0.664352
+#g_base=0.677719
+#b_base=0.641433
 
 
-echo RGB: $R_BASE $G_BASE $B_BASE
+echo RGB: $r_base $g_base $b_base
 
 # calculate the values of the film base
 #eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x7 -format \
@@ -403,43 +429,43 @@ echo RGB: $R_BASE $G_BASE $B_BASE
 #"%[fx: maxima.b ] "\
 #  info:`
 
-#R_BASE=$1
-#G_BASE=$2
-#B_BASE=$3
+#r_base=$1
+#g_base=$2
+#b_base=$3
 
-#echo RGB: $R_BASE $G_BASE $B_BASE
-
-    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
-#    convert $infile[0] -strip $CSPACE \
-#        -channel R -fx "DAB=log(1/u)-log(1/$1);debug(DAB);debug(1/10^(DAB*.6));(1/10^(DAB*.6))" \
-#        -channel G -fx "DAB=log(1/u)-log(1/$2);;(1/10^(DAB*.6))" \
-#        -channel B -fx "DAB=log(1/u)-log(1/$3);;(1/10^(DAB*.6))" \
-#        -colorspace sRGB \
-#        -set comment "$COMMENT" $ZIP "$outfile"
+#echo RGB: $r_base $g_base $b_base
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
 #    convert $infile[0] -strip $CSPACE \
-#       -channel R -fx "DAB=log(1/u)-log(1/$1);;(10^(DAB*.6))*.1" \
-#        -channel G -fx "DAB=log(1/u)-log(1/$2);;(10^(DAB*.6))*.1" \
-#        -channel B -fx "DAB=log(1/u)-log(1/$3);;(10^(DAB*.6))*.1" \
+#        -channel R -fx "dab=log(1/u)-log(1/$1);debug(dab);debug(1/10^(dab*.6));(1/10^(dab*.6))" \
+#        -channel G -fx "dab=log(1/u)-log(1/$2);;(1/10^(dab*.6))" \
+#        -channel B -fx "dab=log(1/u)-log(1/$3);;(1/10^(dab*.6))" \
 #        -colorspace sRGB \
-#        -set comment "$COMMENT" $ZIP "$outfile"
+#        -set comment "$comment" $zip "$outfile"
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+#    convert $infile[0] -strip $CSPACE \
+#       -channel R -fx "dab=log(1/u)-log(1/$1);;(10^(dab*.6))*.1" \
+#        -channel G -fx "dab=log(1/u)-log(1/$2);;(10^(dab*.6))*.1" \
+#        -channel B -fx "dab=log(1/u)-log(1/$3);;(10^(dab*.6))*.1" \
+#        -colorspace sRGB \
+#        -set comment "$comment" $zip "$outfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DAB=log(1/u)-log(1/$1);(10^((DAB-$dmax)*.6))" \
-        -channel G -fx "DAB=log(1/u)-log(1/$2);(10^((DAB-$dmax)*.6))" \
-        -channel B -fx "DAB=log(1/u)-log(1/$3);(10^((DAB-$dmax)*.6))" \
+        -channel R -fx "dab=log(1/u)-log(1/$1);(10^((dab-$dmax)*.6))" \
+        -channel G -fx "dab=log(1/u)-log(1/$2);(10^((dab-$dmax)*.6))" \
+        -channel B -fx "dab=log(1/u)-log(1/$3);(10^((dab-$dmax)*.6))" \
         -colorspace sRGB \
-        -set comment "$COMMENT" $ZIP "$outfile"
+        -set comment "$comment" $zip "$outfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
-        -channel R -fx "DAB=log(1/u)-log(1/$1);(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-        -channel G -fx "DAB=log(1/u)-log(1/$2);(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-        -channel B -fx "DAB=log(1/u)-log(1/$3);(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
+        -channel R -fx "dab=log(1/u)-log(1/$1);(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        -channel G -fx "dab=log(1/u)-log(1/$2);(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        -channel B -fx "dab=log(1/u)-log(1/$3);(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
         -colorspace sRGB \
-        -set comment "$COMMENT" $ZIP _"$outfile"
+        -set comment "$comment" $zip _"$outfile"
 
 fi
 
@@ -453,19 +479,19 @@ newfile=tmp_"$infile"
 #    convert $infile[0] -strip $CSPACE \
 #        -channel R -fx "u^1.7" \
 #        -channel G -fx "u^1.15" \
-#        -set comment "$COMMENT" $ZIP "$newfile"
+#        -set comment "$comment" $zip "$newfile"
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $infile[0] -strip $CSPACE \
         -channel R -fx "u^1.12" \
         -channel G -fx "u^1.05" \
-        -set comment "$COMMENT" $ZIP "$newfile"
+        -set comment "$comment" $zip "$newfile"
 
     #kodak 400
     #convert $infile[0] -strip $CSPACE \
     #    -channel R -fx "u^1.6" \
     #    -channel G -fx "u^1.15" \
-    #    -set comment "$COMMENT" $ZIP "$newfile"
+    #    -set comment "$comment" $zip "$newfile"
 
 #calcmask
 
@@ -517,23 +543,18 @@ eval set -- `convert "$newfile[0]" $CSPACE -strip -format \
 "%[fx: maxima.b ] "\
   info:`
 
-R_BASE=$1
-G_BASE=$2
-B_BASE=$3
+r_base=$1
+g_base=$2
+b_base=$3
 
-echo RGB: $R_BASE $G_BASE $B_BASE
+echo RGB: $r_base $g_base $b_base
 
     #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
     convert $newfile[0] -strip $CSPACE \
-        -channel R -fx "DAB=log(1/u)-log(1/$1);(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-        -channel G -fx "DAB=log(1/u)-log(1/$2);(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
-        -channel B -fx "DAB=log(1/u)-log(1/$3);(((10^(DAB*.6))*$scale)-$scale)/QuantumRange" \
+        -channel R -fx "dab=log(1/u)-log(1/$1);(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        -channel G -fx "dab=log(1/u)-log(1/$2);(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        -channel B -fx "dab=log(1/u)-log(1/$3);(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
         -colorspace sRGB \
-        -set comment "$COMMENT" $ZIP "$outfile"
+        -set comment "$comment" $zip "$outfile"
 
 fi
-
-if [ "$debug" -eq 0 ]; then
-    rm -f "$tmpprefix"*
-fi
-

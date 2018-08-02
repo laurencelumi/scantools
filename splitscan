@@ -7,28 +7,29 @@
 # which can be found here https://www.gnu.org/licenses/gpl-3.0.en.html
 #
 
-PROGNAME=`basename $0`
-message1()
+progname=`basename $0`
+usage()
 	{
 	echo >&2 ""
-	echo >&2 "$PROGNAME:" "$@"
+	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $PROGNAME [-d] [-dd] [-q] [-h] [-t] infile [outfile_prefix]
-USAGE: $PROGNAME [-d] [-dd] [-quarter] [-half] [-three] infile [outfile_prefix]
-USAGE: $PROGNAME [-help]
+USAGE: $progname [-d] [-dd] [-q] [-h] [-t] [-z] infile [outfile_prefix]
+USAGE: $progname [-d] [-dd] [-quarter] [-half] [-three] infile [outfile_prefix]
+USAGE: $progname [-help]
 
 OPTIONS:
+-z          zip             zip compress the output (the default is not compress the output)
 
 MESSAGE1
 exit 1
 	}
-message2()
+help()
 {
     echo >&2 ""
-    echo >&2 "$PROGNAME:" "$@"
+    echo >&2 "$progname:" "$@"
     cat  >&2 << MESSAGE2
 
-NAME: $PROGNAME
+NAME: $progname
 
 PURPOSE: TODO
 
@@ -47,10 +48,11 @@ function DEBUG()
 tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_sp_"
-COMMENT="Processed with splitscan"
-DEBUG echo -set comment "$COMMENT"
-PROF_DIR=$HOME/.scantools
-mkdir -p "$PROF_DIR"
+comment="Processed with splitscan"
+DEBUG echo -set comment "$comment"
+prof_dir=$HOME/.scantools
+zip="+compress"
+mkdir -p "$prof_dir"
 
 while [ $# -gt 0 ]
 do
@@ -58,7 +60,7 @@ do
     case "$1" in
         -help)    # help information note no -h
             echo ""
-            message2
+            help
             ;;
         -d)	debug=1
             ;;
@@ -73,12 +75,15 @@ do
         -t|-three)
             split="three_quarter"
             ;;
+        -z)
+            zip="-compress zip"
+            ;;
         -)    # STDIN and end of arguments
             break
             ;;
         -*)    # any other - argument
             echo "--- UNKNOWN OPTION ---"
-            message1
+            usage
             ;;
         *)     # end of arguments
             break
@@ -92,7 +97,7 @@ outprefix=$2
 
 if [ -z $infile ]; then
     echo "must provide a filename"
-    message2
+    usage
 fi
 if [ ! -f "$infile" -o ! -r "$infile" ]; then
     echo "Cannot open: $infile"
@@ -107,33 +112,34 @@ fi
 DEBUG echo outprefix: $outprefix
 
 DEBUG set -x
+X=`identify -format "%w" $infile`
 if [ "$split" = "quarter" ]; then
     DEBUG echo split = $split
 
-    X1=`convert $infile -format "%[fx:  w *.25]" info:`
-    X2=`convert $infile -format "%[fx:  w *.75]" info:`
+    X1=`convert xc: -format "%[fx:  $X *.25]" info:`
+    X2=`convert xc: -format "%[fx:  $X *.75]" info:`
 elif [ "$split" = "half" ]; then
     DEBUG echo split = $split
 
-    X1=`convert $infile -format "%[fx:  w *.5]" info:`
-    X2=`convert $infile -format "%[fx:  w *.5]" info:`
+    X1=`convert xc: -format "%[fx:  $X *.5]" info:`
+    X2=$X1
 elif [ "$split" = "three_quarter" ]; then
     DEBUG echo split = $split
 
-    X1=`convert $infile -format "%[fx:  w *.75]" info:`
-    X2=`convert $infile -format "%[fx:  w *.25]" info:`
+    X1=`convert xc: -format "%[fx:  $X *.75]" info:`
+    X2=`convert xc: -format "%[fx:  $X *.25]" info:`
 else
     echo "nothing to do, you must split by quarter, half or three (quarters)"
     exit 1
 fi
 
 
-Y=`convert $infile -format "%h" info:`
+Y=`identify -format "%h" $infile`
 DEBUG echo X1, X2 and Y: $X1, $X2 and $Y
 
-convert $infile +repage -crop "$X1"x"$Y"+0+0 +repage "$outprefix"A.tif
-convert $infile +repage -crop "$X2"x"$Y"+"$X1"+0 +repage "$outprefix"B.tif
 echo spliting file:"$outprefix"A.tif
+convert $infile +repage -crop "$X1"x"$Y"+0+0 +repage $zip "$outprefix"A.tif
 echo spliting file:"$outprefix"B.tif
+convert $infile +repage -crop "$X2"x"$Y"+"$X1"+0 +repage $zip "$outprefix"B.tif
 
 exit 0
