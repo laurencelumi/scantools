@@ -301,14 +301,14 @@ if [ $approach = "m_printing_density" ]; then
 
     if [ $exiftool -eq 1 ]; then
 
-    caption="fb used: $r_base, $g_base, $b_base\n"
-    caption+="min:     ${maxmins[0]}, ${maxmins[1]}, ${maxmins[2]}\n"
-    caption+="max:     ${maxmins[3]}, ${maxmins[4]}, ${maxmins[5]}\n"
-    caption+="log(min):${densities[0]}, ${densities[1]}, ${densities[2]}\n"
-    caption+="log(max):${densities[3]}, ${densities[4]}, ${densities[5]}\n"
-    caption+="dMax:    ${densities[6]}, ${densities[7]}, ${densities[8]}"
-    caption=`printf "$caption"`
-    DEBUG echo "$caption"
+        caption="fb used: $r_base, $g_base, $b_base\n"
+        caption+="min:     ${maxmins[0]}, ${maxmins[1]}, ${maxmins[2]}\n"
+        caption+="max:     ${maxmins[3]}, ${maxmins[4]}, ${maxmins[5]}\n"
+        caption+="log(min):${densities[0]}, ${densities[1]}, ${densities[2]}\n"
+        caption+="log(max):${densities[3]}, ${densities[4]}, ${densities[5]}\n"
+        caption+="dMax:    ${densities[6]}, ${densities[7]}, ${densities[8]}"
+        caption=`printf "$caption"`
+        DEBUG echo "$caption"
 
         exiftool -overwrite_original -Model="DMAX $dmax_input $dmax_measured"\
             "-iptc:caption-abstract=$caption"\
