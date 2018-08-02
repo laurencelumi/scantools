@@ -162,7 +162,7 @@ if [[ $infile =~ .*.tif$ ]]; then
     CSPACE="-set colorspace RGB"
 fi
 
-tmpfileprefix="$tmpprefix"`basename "${outfile%.tif}"`
+tmpfileprefix="$tmpprefix"`date +%N``basename "${outfile%.tif}"`
 DEBUG echo tmpfileprefix $tmpfileprefix
 
 if [ "$debug" -eq 2 ]; then

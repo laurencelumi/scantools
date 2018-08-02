@@ -149,7 +149,7 @@ if [ -z $outprefix ]; then
 else
     outprefix=${outprefix%".tif"}
 fi
-tmpfileprefix="$tmpprefix"`basename "$outprefix"`
+tmpfileprefix="$tmpprefix"`date +%N``basename "$outprefix"`
 DEBUG echo tmpfileprefix: $tmpfileprefix
 DEBUG echo outprefix: $outprefix
 

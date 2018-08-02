@@ -92,7 +92,9 @@ qsort() {
 }
 function cleanup {
 if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
+    set -x
     rm -f "$tmpfileprefix"*
+    set +x
 fi
 }
 trap cleanup EXIT
@@ -219,7 +221,7 @@ if [ -z $outprefix ]; then
 else
     outprefix=${outprefix%".tif"}_
 fi
-tmpfileprefix="$tmpprefix"`basename "$outprefix"`
+tmpfileprefix="$tmpprefix"`date +%N``basename "$outprefix"`
 DEBUG echo tmpfileprefix: $tmpfileprefix
 DEBUG echo outprefix: $outprefix
 
