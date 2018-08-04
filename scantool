@@ -158,13 +158,13 @@ invertfiles=()
 DEBUG set -x;
 
     #because the strips of film will contain at some gaps the fuzz threshhold can be increased
-    mapfile files < <(vtrimscan holder -f 7 $infile $tmpfileprefix | sed 's/^cropping //g' )
+    mapfile files < <(vtrimscan holder -f 4 $infile $tmpfileprefix | sed 's/^cropping //g' )
     DEBUG echo files: ${files[*]}
 
 
     for ((i=0;i<${#files[*]};i++)); do
 
-        mapfile filesJ < <(vtrimscan holder -r 90 -f 3 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
+        mapfile filesJ < <(vtrimscan holder -r 90 -f 1 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
         DEBUG echo files j:${filesJ[*]}
         for ((j=0;j<${#filesJ[*]};j++)); do
             mapfile filesK < <(vtrimscan gap $zip ${filesJ[j]} | sed 's/^cropping //g' )
