@@ -164,7 +164,7 @@ DEBUG set -x;
 
     for ((i=0;i<${#files[*]};i++)); do
 
-        mapfile filesJ < <(vtrimscan ends -r 90 -f 1 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
+        mapfile filesJ < <(vtrimscan ends -r 90 -f 2 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
         DEBUG echo files j:${filesJ[*]}
         for ((j=0;j<${#filesJ[*]};j++)); do
             mapfile filesK < <(vtrimscan gap $zip ${filesJ[j]} | sed 's/^cropping //g' )
@@ -178,6 +178,10 @@ DEBUG set -x;
                     ln -f $outfile ${filesK[k]}
                 fi
                 echo saving $outfile
+                Y=`identify -format "%h" $outfile`
+                X=`identify -format "%w" $outfile`
+                ratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y]" info:`
+                echo $ratio
                 invertfiles+=($outfile)
             done
         done

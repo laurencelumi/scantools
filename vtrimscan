@@ -97,7 +97,8 @@ if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
 fi
 DEBUG set -x
 if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
-    mapfile files < <(ls "$tmpfileprefix"1work.tif* "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif)
+    touch "$tmpfileprefix"0work.tif
+    mapfile files < <(ls "$tmpfileprefix"1work.tif "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif "$tmpfileprefix"4work.tif)
     #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
     #caution this may have side effects as the logic is different compared to the low debug levels
     for ((i=0;i<${#files[*]};i++)); do
@@ -119,12 +120,12 @@ zip="+compress"
 
 if [ "$1" = "vstrip" ]; then
     mode="vstrip"
-    fuzz=4
+    fuzz=8 #this is actually 4 as the values are scalled by 2
     suffix="strip"
     shift
 elif [ "$1" = "ends" ]; then
     mode="ends"
-    fuzz=4
+    fuzz=3 #this is actually 1.5 as the values are scalled by 2
     suffix="trimmed"
     shift
 elif [ "$1" = "gap" ]; then
@@ -253,7 +254,7 @@ fi
 
 DEBUG set -x;
 
-Y=`convert $infile -format "%h" info:`
+Y=`identify -format "%h" $infile `
 let shave=$Y/25
 
 tmpfile0="$tmpfileprefix"0work.tif
@@ -261,7 +262,7 @@ if [ "$mode" = "gap" ]; then
     #remove any sprocket holes or missing bits of film use a default of 5% this mean the film base must be darker than 5%
     convert $infile -shave 0x$shave -fuzz "$filmbase"% -fill black -opaque white +compress +repage "$tmpfile0"
 elif [ "$mode" = "ends" ]; then
-    convert $infile -fuzz "$filmbase"% -fill black -opaque white +compress "$tmpfile0"
+    convert $infile -shave 0x$shave -fuzz "$filmbase"% -fill black -opaque white +compress "$tmpfile0"
 else
     tmpfile0="$infile"
 fi
@@ -279,30 +280,30 @@ if [ $mode = "gap" ]; then
     #done
     exposure_increase=(`convert -size 1x1 xc: -format \
         "%[fx: ${stripcolor[0]}^-1*100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] " info:`)
-    mv "$tmpfileprefix"1work.tif "$tmpfileprefix"1work.tif_
-    convert "$tmpfileprefix"1work.tif_\
+    convert "$tmpfileprefix"1work.tif\
         -channel R -evaluate multiply "${exposure_increase[0]}"\
         -channel G -evaluate multiply "${exposure_increase[1]}"\
         -channel B -evaluate multiply "${exposure_increase[2]}"\
-         "$tmpfileprefix"1work.tif
-    stripcolor=(`convert -shave 500x0 "$tmpfileprefix"1work.tif -strip -blur 25x65355 -format \
+         "$tmpfileprefix"2work.tif
+    stripcolor=(`convert -shave 500x0 "$tmpfileprefix"2work.tif -strip -blur 25x65355 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
     opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
 else
+    convert "$tmpfileprefix"1work.tif -evaluate multiply 2 \
+         "$tmpfileprefix"2work.tif
     opaque="black"
 fi
 
 
-convert "$tmpfileprefix"1work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"2work.tif
-#convert "$tmpfileprefix"1work.tif -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"2work.tif
+convert "$tmpfileprefix"2work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"3work.tif
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
-#convert "$tmpfileprefix"2work.tif -morphology open "5x1:0,1,1,1,0" "$tmpfileprefix"3work.tif
-convert "$tmpfileprefix"2work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"3work.tif
+#convert "$tmpfileprefix"3work.tif -morphology open "5x1:0,1,1,1,0" "$tmpfileprefix"4work.tif
+convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
 
 arr=()
 OLD_IFS=$IFS
 IFS=$'\n'
-arr=(`convert "$tmpfileprefix"3work.tif -type bilevel \
+arr=(`convert "$tmpfileprefix"4work.tif -type bilevel \
 -define connected-components:verbose=true \
 -define connected-components:mean-color=true \
 -connected-components 4 \
