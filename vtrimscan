@@ -13,10 +13,11 @@ usage()
 	echo >&2 ""
 	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $progname gap | holder [-d] [-dd] [-m] [-flip] [-r rotate] [-p pixel] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] infile [outfile_prefix]
+USAGE: $progname gap | vstrip | ends [-d] [-dd] [-m] [-flip] [-r rotate] [-p pixel] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] infile [outfile_prefix]
 USAGE: $progname [-h ] [ -help ]
 
-holder    removeholder   the script for trim the film holder
+vstrip    split vstrip   the script will seperate verticals strims of film
+ends      trim ends      the script will trim the ends of the film
 gap       remove gap     the script will remove the film frame gaps
 
 OPTIONS:
@@ -33,7 +34,7 @@ OPTIONS:
                            if brighest area of the film base is 75% then the threshold should be less than 25%
                            expressed as (integer) percent 0 to 100; default=25
 -f          fuzz           fuzz value used for a threshold to find area outside the frame, either the black film holder or the gaps between frames
-                           expressed as (integer) percent 0 to 100; default=3 for gap and 10 for holder
+                           expressed as (integer) percent 0 to 100; default=3 for gap and 10 for vstrip
 -n          frame number   the starting frame number to use in file name; defaults to #1
 -z          zip            zip compress the output (the default does not compress the output)
 
@@ -94,28 +95,47 @@ function cleanup {
 if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
     rm -f "$tmpfileprefix"*
 fi
+DEBUG set -x
+if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
+    mapfile files < <(ls "$tmpfileprefix"1work.tif* "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif)
+    #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
+    #caution this may have side effects as the logic is different compared to the low debug levels
+    for ((i=0;i<${#files[*]};i++)); do
+        convert ${files[i]} -scale x"$Y"! +compress ${files[i]}
+    done
+fi
+
 }
 trap cleanup EXIT
 
 tmpdir="./"
 debug=0
 tmpprefix=$tmpdir"_vt_"
-filmbase=25
+filmbase=5 #can reduce this value if increase the radius of the blur
 framenumber=1
 pixel=250
 extend=0
 zip="+compress"
 
-if [ "$1" = "holder" ]; then
-    mode="holder"
-    fuzz=7
+if [ "$1" = "vstrip" ]; then
+    mode="vstrip"
+    fuzz=4
+    suffix="strip"
+    shift
+elif [ "$1" = "ends" ]; then
+    mode="ends"
+    fuzz=4
+    suffix="trimmed"
     shift
 elif [ "$1" = "gap" ]; then
     mode="gap"
-    fuzz=3
+    fuzz=7 #note this is scalled
+    #fuzz=5 #note could bring this down to this as this seems to work pretty reliably need to work out
+    #logic to sprint frames
+    suffix="frame"
     shift
 else
-    echo "must specify either holder or gap"
+    echo "must specify either vstrip, ends or gap"
     help
 fi
 
@@ -233,43 +253,48 @@ fi
 
 DEBUG set -x;
 
-if [ $mode = "gap" ]; then
-    #remove any sprocket holes or missing bits of film use a default of 25% this mean the film base must be darker than 25%
-    #this is necessary as the average of the white and dark may match the film base this not necessary when looking for the holder
-    #may need to revist this
-    tmpfile0="$tmpfileprefix"0work.tif
+Y=`convert $infile -format "%h" info:`
+let shave=$Y/25
+
+tmpfile0="$tmpfileprefix"0work.tif
+if [ "$mode" = "gap" ]; then
+    #remove any sprocket holes or missing bits of film use a default of 5% this mean the film base must be darker than 5%
+    convert $infile -shave 0x$shave -fuzz "$filmbase"% -fill black -opaque white +compress +repage "$tmpfile0"
+elif [ "$mode" = "ends" ]; then
     convert $infile -fuzz "$filmbase"% -fill black -opaque white +compress "$tmpfile0"
 else
-    #skip the fill step and just use input file directly
     tmpfile0="$infile"
 fi
 
-if [ "$debug" -eq 2 ]; then
-    #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
-    #caution this may have side effects as the logic is different compared to the low debug levels
-    XY=`convert $infile -format "%wx%h" info:`
-    convert "$tmpfile0" -scale x1! -scale $XY! +compress "$tmpfileprefix"1work.tif
-else
-    convert "$tmpfile0" -scale x1! +compress "$tmpfileprefix"1work.tif
-fi
+convert "$tmpfile0" -scale x1! +compress "$tmpfileprefix"1work.tif
 
 if [ $mode = "gap" ]; then
-    stripcolor=(`convert "$tmpfileprefix"1work.tif -strip -blur 7x7 -format \
+    #note radius of 25 means at least one gap needs be at least 50pix wide
+    stripcolor=(`convert -shave 500x0 "$tmpfileprefix"1work.tif -strip -blur 25x65355 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
     #num=${#stripcolor[*]}
     #echo num:$num
     #for ((i=0;i<num;i++)); do
     #    echo SC:${stripcolor[$i]}
     #done
+    exposure_increase=(`convert -size 1x1 xc: -format \
+        "%[fx: ${stripcolor[0]}^-1*100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] " info:`)
+    mv "$tmpfileprefix"1work.tif "$tmpfileprefix"1work.tif_
+    convert "$tmpfileprefix"1work.tif_\
+        -channel R -evaluate multiply "${exposure_increase[0]}"\
+        -channel G -evaluate multiply "${exposure_increase[1]}"\
+        -channel B -evaluate multiply "${exposure_increase[2]}"\
+         "$tmpfileprefix"1work.tif
+    stripcolor=(`convert -shave 500x0 "$tmpfileprefix"1work.tif -strip -blur 25x65355 -format \
+        "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
     opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
 else
     opaque="black"
 fi
 
 
-#note sometimes convert reduces the png to 8bit if it can do so when it leaves it at 16bit this is probably because the fill has worked in funny way i.e. not all black and white
-#note the -colors 2 this is because sometime the entire image does not any area that would match the film base
-convert "$tmpfileprefix"1work.tif -fuzz "$fuzz"% -fill black -opaque "$opaque" -fill white +opaque black -colors 2 +compress "$tmpfileprefix"2work.tif
+convert "$tmpfileprefix"1work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"2work.tif
+#convert "$tmpfileprefix"1work.tif -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"2work.tif
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
 #convert "$tmpfileprefix"2work.tif -morphology open "5x1:0,1,1,1,0" "$tmpfileprefix"3work.tif
 convert "$tmpfileprefix"2work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"3work.tif
@@ -293,7 +318,6 @@ IFS=$OLD_IFS
 num=${#arr[*]}
 
 DEBUG echo cropping frames
-Y=`convert $infile -format "%h" info:`
 for ((i=0;i<num;i++)); do
     color=`echo "${arr[$i]}" | cut -d\  -f5`
     bbox=`echo "${arr[$i]}" | cut -d\  -f2`
@@ -304,10 +328,8 @@ for ((i=0;i<num;i++)); do
     #        echo "$i=>${array[j]}"
     #    done;
     X="${array[0]}"
-    if [ "$debug" -eq 2 ]; then
-        #you have the correct height
-        Y="${array[1]}"
-    fi
+    #you no longer have the correct height
+    # Y="${array[1]}"
     x="${array[2]}"
     y="${array[3]}"
 
@@ -316,19 +338,12 @@ for ((i=0;i<num;i++)); do
         x=$((x+$extend))
     fi
 
-    if [ $X -eq 1 ]; then
-        DEBUG echo skipping $i because it has X value of 1 XYxy $X $Y $x $y
-        #this should not probably happen now that -colors 2 was added to the fill command
-        echo THIS IS HAPPENING
-        continue;
-    fi
-
     if [ "$debug" -lt 2 ] && ( [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] || [ "$color" = "gray(0%)" ] ) ; then
         DEBUG echo skipping $i XYxy $X $Y $x $y
         continue;
     fi
     DEBUG echo using ${arr[$i]}
-    outfile="$outprefix"frame-`printf "%03d" "$framenumber"`.tif
+    outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
     framenumber=$((framenumber+1))
     echo cropping $outfile
     DEBUG set -x;

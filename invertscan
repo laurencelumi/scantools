@@ -14,6 +14,7 @@ usage()
 	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
 USAGE: $progname [-d] [-dd] [-m1] [-p name] [-fb R,G,B] [-dmax value] [-z] [+z] infile [outfile]
+USAGE: $progname [-d] [-dd] [-m1] [-p name] [-fb R,G,B] [-dmax value] [-z] [+z] directory
 USAGE: $progname [-h] [-help]
 
 OPTIONS:
@@ -88,10 +89,12 @@ do
         -c8)	approach="c_printing_density"
             ;;
         -m1)	approach="m_printing_density" #monochrome printing density current default
+            options+=" -m1"
             ;;
         -p)    # profile name
             shift
             profile_name="$1"
+            options+=" -p $1"
             ;;
         -fb)    # film base values
             shift
@@ -111,6 +114,7 @@ do
                     usage
                 fi
             done
+            options+=" -fb $1"
             ;;
         -dmax)    # dmax value
             shift
@@ -119,12 +123,15 @@ do
                 echo "--- dmax_input=$dmax_input must be a positive float value or auto---"
                 usage
             fi
+            options+=" -dmax $1"
             ;;
         -z)
             zip="-compress zip"
+            options+=" -z"
             ;;
         +z)
             zip="+compress"
+            options+=" +z"
             ;;
         -)    # STDIN and end of arguments
             break
@@ -142,6 +149,23 @@ done
 
 infile=$1
 outfile=$2
+
+
+if [ -d $infile ]; then
+    echo "processing a directory"
+    outdir=`basename ${infile%".tif"}-P`
+    DEBUG   echo outdir: $outdir
+    mapfile files < <(ls $infile/*.tif)
+    for ((i=0;i<${#files[*]};i++)); do
+        echo "processing" ${files[i]}
+        mkdir -p $outdir
+        outfile="$outdir"/`basename ${files[i]%".tif"}-P.tif`
+        DEBUG set -x
+        invertscan $options $zip ${files[i]} $outfile
+        set +x
+    done
+fi
+
 
 if [ -z $infile ]; then
     echo "must provide a filename"
@@ -181,13 +205,13 @@ if [ $approach = "m_printing_density" ]; then
     DEBUG echo approach = $approach
 
     if [ "$debug" -eq 2 ]; then
-        convert "$infile[0]" $CSPACE -strip -blur 100x5 \
+        convert "$infile[0]" $CSPACE -strip -blur 20x65355 \
         -shave 100x100 \
             -set comment "$comment" +compress "$tmpfileprefix"_input_for_calculations.tif
     fi
 
     # calculate the film value and maxmim density, ideally this should be calculated before and passed in
-    eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 \
+    eval set -- `convert "$infile[0]" $CSPACE -strip -blur 20x65355 \
         -shave 100x100 \
         -format\
         "%[fx: maxima.r ] %[fx: maxima.g ] %[fx: maxima.b ]\
@@ -250,7 +274,7 @@ if [ $approach = "m_printing_density" ]; then
     dmax_measured=$9
 
     densities=($*)
-    if [ $dmax_input = "auto" ]; then
+    if [ "$dmax_input" = "auto" ]; then
         dmax=$dmax_measured
         echo using auto calculated dmax
     else
@@ -366,7 +390,7 @@ if [ $approach = "c_rethink_2" ]; then
 #calcmask
 
 # calculate the values to remove the mask
-eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 -format \
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 20x65355 -format \
 "%[fx: maxima.r ] "\
 "%[fx: maxima.g ] "\
 "%[fx: maxima.b ] "\
@@ -384,7 +408,7 @@ echo Green: $2 $5 $8
 echo Blue : $3 $6 $9
 
 # calculate the values to remove the mask
-eval set -- `convert "$infile[0]" $CSPACE -strip -blur 100x5 -format \
+eval set -- `convert "$infile[0]" $CSPACE -strip -blur 20x65355 -format \
 "%[fx: -log(maxima.r) ] "\
 "%[fx: -log(maxima.g) ] "\
 "%[fx: -log(maxima.b) ] "\
@@ -498,7 +522,7 @@ newfile=tmp_"$infile"
 
 
 # calculate the min max values
-eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 100x5 -format \
+eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 20x65355 -format \
 "%[fx: maxima.r ] "\
 "%[fx: maxima.g ] "\
 "%[fx: maxima.b ] "\
@@ -516,7 +540,7 @@ echo Green: $2 $5 $8
 echo Blue : $3 $6 $9
 
 # calculate the density values
-eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 100x5 -format \
+eval set -- `convert "$newfile[0]" $CSPACE -strip -blur 20x65355 -format \
 "%[fx: -log(maxima.r) ] "\
 "%[fx: -log(maxima.g) ] "\
 "%[fx: -log(maxima.b) ] "\
