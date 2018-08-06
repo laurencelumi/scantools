@@ -204,8 +204,6 @@ fi
 if [ $approach = "m_printing_density" ]; then
     DEBUG echo approach = $approach
 
-#TODO the -blur should be something likex 50x65355 the second value is the sigma using the maximum causes the average over the radius to be used
-
     if [ "$debug" -eq 2 ]; then
         convert "$infile[0]" $CSPACE -strip -blur 20x65355 \
         -shave 100x100 \
