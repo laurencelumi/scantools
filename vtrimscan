@@ -64,7 +64,7 @@ function DEBUG()
 }
 
 # quicksorts positional arguments
-# return is in array qsort_ret
+# return is in box qsort_ret
 # Note: iterative, NOT recursive! :)
 # First argument is a function name that takes two arguments and compares them
 qsort() {
@@ -273,11 +273,6 @@ if [ $mode = "gap" ]; then
     #note radius of 25 means at least one gap needs be at least 50pix wide
     stripcolor=(`convert -shave 500x0 "$tmpfileprefix"1work.tif -strip -blur 25x65355 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
-    #num=${#stripcolor[*]}
-    #echo num:$num
-    #for ((i=0;i<num;i++)); do
-    #    echo SC:${stripcolor[$i]}
-    #done
     exposure_increase=(`convert -size 1x1 xc: -format \
         "%[fx: ${stripcolor[0]}^-1*100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] " info:`)
     convert "$tmpfileprefix"1work.tif\
@@ -309,7 +304,7 @@ arr=(`convert "$tmpfileprefix"4work.tif -type bilevel \
 -connected-components 4 \
 null: | sed 's/^[ ]*//' | tail -n +2`)
 set +x
-DEBUG echo array size is: ${#arr[*]}
+DEBUG echo box size is: ${#arr[*]}
 compare() { [[ ${1%:*} -lt ${2%%:*} ]]; }
 qsort compare ${arr[*]}
 arr=("${qsort_ret[@]}")
@@ -318,32 +313,47 @@ DEBUG declare -p arr
 IFS=$OLD_IFS
 num=${#arr[*]}
 
-DEBUG echo cropping frames
+boxes=()
 for ((i=0;i<num;i++)); do
     color=`echo "${arr[$i]}" | cut -d\  -f5`
     bbox=`echo "${arr[$i]}" | cut -d\  -f2`
-    bbox=`echo $bbox  | sed 's/[+x]/:/g'`
-    array=(${bbox//:/ })
-    #    for j in "${!array[@]}"
-    #    do
-    #        echo "$i=>${array[j]}"
-    #    done;
-    X="${array[0]}"
+    if [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] || [ "$color" = "gray(0%)" ]; then
+        color="B"
+    else
+        color="W"
+    fi
+    boxes[i]="$color":`echo $bbox  | sed 's/[+x]/:/g'`
+done
+DEBUG declare -p boxes
+
+DEBUG echo cropping frames
+for ((i=0;i<num;i++)); do
+    box=(${boxes[i]//:/ })
+
+    color="${box[0]}"
+    X="${box[1]}"
     #you no longer have the correct height
-    # Y="${array[1]}"
-    x="${array[2]}"
-    y="${array[3]}"
+    # Y="${box[2]}"
+    x="${box[3]}"
+    y="${box[4]}"
 
     if [ $extend -ne 0 ]; then
         X=$((X-($extend*2)))
         x=$((x+$extend))
     fi
 
-    if [ "$debug" -lt 2 ] && ( [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] || [ "$color" = "gray(0%)" ] ) ; then
+    #ratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y]" info:`
+    #DEBUG echo ratio $ratio
+    #expirmental code, for the moment just adjust the threshold so not so agressive and manual chop film
+    #if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < 1" | bc -l) )) ; then
+    #        echo suspect $ratio
+    #    fi
+
+    if [ "$debug" -lt 2 ] && [ "$color" = "B" ]; then
         DEBUG echo skipping $i XYxy $X $Y $x $y
         continue;
     fi
-    DEBUG echo using ${arr[$i]}
+
     outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
     framenumber=$((framenumber+1))
     echo cropping $outfile
