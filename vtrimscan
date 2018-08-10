@@ -64,7 +64,7 @@ function DEBUG()
 }
 
 # quicksorts positional arguments
-# return is in array qsort_ret
+# return is in box qsort_ret
 # Note: iterative, NOT recursive! :)
 # First argument is a function name that takes two arguments and compares them
 qsort() {
@@ -97,7 +97,8 @@ if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
 fi
 DEBUG set -x
 if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
-    mapfile files < <(ls "$tmpfileprefix"1work.tif* "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif)
+    touch "$tmpfileprefix"0work.tif
+    mapfile files < <(ls "$tmpfileprefix"1work.tif "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif "$tmpfileprefix"4work.tif)
     #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
     #caution this may have side effects as the logic is different compared to the low debug levels
     for ((i=0;i<${#files[*]};i++)); do
@@ -119,12 +120,12 @@ zip="+compress"
 
 if [ "$1" = "vstrip" ]; then
     mode="vstrip"
-    fuzz=4
+    fuzz=8 #this is actually 4 as the values are scalled by 2
     suffix="strip"
     shift
 elif [ "$1" = "ends" ]; then
     mode="ends"
-    fuzz=4
+    fuzz=3 #this is actually 1.5 as the values are scalled by 2
     suffix="trimmed"
     shift
 elif [ "$1" = "gap" ]; then
@@ -253,7 +254,7 @@ fi
 
 DEBUG set -x;
 
-Y=`convert $infile -format "%h" info:`
+Y=`identify -format "%h" $infile `
 let shave=$Y/25
 
 tmpfile0="$tmpfileprefix"0work.tif
@@ -261,7 +262,7 @@ if [ "$mode" = "gap" ]; then
     #remove any sprocket holes or missing bits of film use a default of 5% this mean the film base must be darker than 5%
     convert $infile -shave 0x$shave -fuzz "$filmbase"% -fill black -opaque white +compress +repage "$tmpfile0"
 elif [ "$mode" = "ends" ]; then
-    convert $infile -fuzz "$filmbase"% -fill black -opaque white +compress "$tmpfile0"
+    convert $infile -shave 0x$shave -fuzz "$filmbase"% -fill black -opaque white +compress "$tmpfile0"
 else
     tmpfile0="$infile"
 fi
@@ -272,43 +273,38 @@ if [ $mode = "gap" ]; then
     #note radius of 25 means at least one gap needs be at least 50pix wide
     stripcolor=(`convert -shave 500x0 "$tmpfileprefix"1work.tif -strip -blur 25x65355 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
-    #num=${#stripcolor[*]}
-    #echo num:$num
-    #for ((i=0;i<num;i++)); do
-    #    echo SC:${stripcolor[$i]}
-    #done
     exposure_increase=(`convert -size 1x1 xc: -format \
         "%[fx: ${stripcolor[0]}^-1*100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] " info:`)
-    mv "$tmpfileprefix"1work.tif "$tmpfileprefix"1work.tif_
-    convert "$tmpfileprefix"1work.tif_\
+    convert "$tmpfileprefix"1work.tif\
         -channel R -evaluate multiply "${exposure_increase[0]}"\
         -channel G -evaluate multiply "${exposure_increase[1]}"\
         -channel B -evaluate multiply "${exposure_increase[2]}"\
-         "$tmpfileprefix"1work.tif
-    stripcolor=(`convert -shave 500x0 "$tmpfileprefix"1work.tif -strip -blur 25x65355 -format \
+         "$tmpfileprefix"2work.tif
+    stripcolor=(`convert -shave 500x0 "$tmpfileprefix"2work.tif -strip -blur 25x65355 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
     opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
 else
+    convert "$tmpfileprefix"1work.tif -evaluate multiply 2 \
+         "$tmpfileprefix"2work.tif
     opaque="black"
 fi
 
 
-convert "$tmpfileprefix"1work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"2work.tif
-#convert "$tmpfileprefix"1work.tif -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"2work.tif
+convert "$tmpfileprefix"2work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"3work.tif
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
-#convert "$tmpfileprefix"2work.tif -morphology open "5x1:0,1,1,1,0" "$tmpfileprefix"3work.tif
-convert "$tmpfileprefix"2work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"3work.tif
+#convert "$tmpfileprefix"3work.tif -morphology open "5x1:0,1,1,1,0" "$tmpfileprefix"4work.tif
+convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
 
 arr=()
 OLD_IFS=$IFS
 IFS=$'\n'
-arr=(`convert "$tmpfileprefix"3work.tif -type bilevel \
+arr=(`convert "$tmpfileprefix"4work.tif -type bilevel \
 -define connected-components:verbose=true \
 -define connected-components:mean-color=true \
 -connected-components 4 \
 null: | sed 's/^[ ]*//' | tail -n +2`)
 set +x
-DEBUG echo array size is: ${#arr[*]}
+DEBUG echo box size is: ${#arr[*]}
 compare() { [[ ${1%:*} -lt ${2%%:*} ]]; }
 qsort compare ${arr[*]}
 arr=("${qsort_ret[@]}")
@@ -317,32 +313,94 @@ DEBUG declare -p arr
 IFS=$OLD_IFS
 num=${#arr[*]}
 
-DEBUG echo cropping frames
+boxes=()
 for ((i=0;i<num;i++)); do
     color=`echo "${arr[$i]}" | cut -d\  -f5`
     bbox=`echo "${arr[$i]}" | cut -d\  -f2`
-    bbox=`echo $bbox  | sed 's/[+x]/:/g'`
-    array=(${bbox//:/ })
-    #    for j in "${!array[@]}"
-    #    do
-    #        echo "$i=>${array[j]}"
-    #    done;
-    X="${array[0]}"
+    if [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] || [ "$color" = "gray(0%)" ]; then
+        color="B"
+    else
+        color="W"
+    fi
+    boxes[i]="$color":`echo $bbox  | sed 's/[+x]/:/g'`
+done
+DEBUG declare -p boxes
+
+if [ $mode = "gap" ]; then
+    #expimental code, this works but may need to revisit
+    #work out the ratio of strip
+    X=`identify -format "%w" $infile `
+    stripratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y ]" info:`
+    DEBUG echo stripratio $stripratio
+    if (( $(echo "$stripratio > 5" | bc -l) )); then
+        frameratio=1.2
+        DEBUG echo guessing 35mm
+    else
+        frameratio=0.8
+        DEBUG echo guessing 35mm
+    fi
+
+    # an attempt to identiy 35mm
+    for ((i=0;i<num;i++)); do
+        ibox=(${boxes[i]//:/ })
+
+        icolor="${ibox[0]}"
+        iX="${ibox[1]}"
+        ix="${ibox[3]}"
+
+        ratio=`convert -size 1x1 xc: -format "%[fx: $iX"/"$Y]" info:`
+        DEBUG echo iratio $ratio 
+        #maybe need flags for 35mm and 120 ratios
+        if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
+            DEBUG echo suspect $icolor $ratio box: ${boxes[i]}
+
+            for ((j=$i+1;j<num;j++)); do
+                jbox=(${boxes[j]//:/ })
+
+                jcolor="${jbox[0]}"
+                jX="${jbox[1]}"
+                jx="${jbox[3]}"
+
+                ratio=`convert -size 1x1 xc: -format "%[fx: $jX"/"$Y]" info:`
+                DEBUG echo jratio $ratio 
+                if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
+                    DEBUG echo following suspect $color $ratio box: ${boxes[j]}
+                    #merge box and nextbox
+                    boxes[i]="B:0:0:0:0"
+                    iX=$((iX+$jX))
+                    boxes[j]="W:""$iX":1:"$ix":0
+                    i=$j
+                else
+                    break;
+                fi
+            done
+        fi
+    done
+    DEBUG declare -p boxes
+fi
+
+DEBUG echo cropping frames
+for ((i=0;i<num;i++)); do
+    box=(${boxes[i]//:/ })
+
+    color="${box[0]}"
+    X="${box[1]}"
     #you no longer have the correct height
-    # Y="${array[1]}"
-    x="${array[2]}"
-    y="${array[3]}"
+    # Y="${box[2]}"
+    x="${box[3]}"
+    #y="${box[4]}"
+    y=0
 
     if [ $extend -ne 0 ]; then
         X=$((X-($extend*2)))
         x=$((x+$extend))
     fi
 
-    if [ "$debug" -lt 2 ] && ( [ "$color" = "gray(0)" ] || [ "$color" = "srgb(0,0,0)" ] || [ "$color" = "gray(0%)" ] ) ; then
+    if [ "$debug" -lt 2 ] && [ "$color" = "B" ]; then
         DEBUG echo skipping $i XYxy $X $Y $x $y
         continue;
     fi
-    DEBUG echo using ${arr[$i]}
+
     outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
     framenumber=$((framenumber+1))
     echo cropping $outfile

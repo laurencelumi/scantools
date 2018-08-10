@@ -12,12 +12,14 @@ usage()
 	echo >&2 ""
 	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $progname frames | invert | both [-d] [-dd] [-n number] [-p name] [-fb R,G,B] [-dmax value] [+z] infile [outfile_prefix]
+USAGE: $progname frames | invert | both [-d] [-dd] [-n number] [-p name] [-fb R,G,B] [-dmax value] [+z] [-k] infile [outfile_prefix]
 USAGE: $progname [-h ]  [-help]
 
 OPTIONS:
 
 +z          zip     dont zip compress the output (the default is too compress the output)
+-k          keep    keep strips
+-f          fuzz    threshold used for gaps between frames
 
 
 MESSAGE1
@@ -56,6 +58,7 @@ debug=0
 tmpprefix=$tmpdir"_st_"
 framenumber=1
 zip="-z"
+keep=0
 
 if [ "$1" = "frames" ]; then
     mode="frames"
@@ -116,6 +119,18 @@ do
         +z)
             zip="+z"
             ;;
+        -k)
+            keep=1
+            ;;
+        -f)    # fuzz
+            shift
+            fuzz="$1"
+            if [[ ! "$fuzz" =~ ^[0-9]+$ ]] || [ "$fuzz" -lt 0 -o "$fuzz" -gt 100 ]; then
+                echo "--- fuzz=$fuzz must be a positive integer value between 0 and 100 ---"
+                usage
+            fi
+            fuzz="-f $fuzz"
+            ;;
         -)    # STDIN and end of arguments
             break
             ;;
@@ -164,10 +179,10 @@ DEBUG set -x;
 
     for ((i=0;i<${#files[*]};i++)); do
 
-        mapfile filesJ < <(vtrimscan ends -r 90 -f 1 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
+        mapfile filesJ < <(vtrimscan ends -r 90 -f 2 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
         DEBUG echo files j:${filesJ[*]}
         for ((j=0;j<${#filesJ[*]};j++)); do
-            mapfile filesK < <(vtrimscan gap $zip ${filesJ[j]} | sed 's/^cropping //g' )
+            mapfile filesK < <(vtrimscan gap $fuzz $zip ${filesJ[j]} | sed 's/^cropping //g' )
             DEBUG echo files k:${filesK[*]}
             for ((k=0;k<${#filesK[*]};k++)); do
                 mkdir -p "$outprefix"
@@ -180,6 +195,16 @@ DEBUG set -x;
                 echo saving $outfile
                 invertfiles+=($outfile)
             done
+            if [ "$keep" -eq 1 ]; then
+                mkdir -p "$outprefix"
+                outfile="$outprefix"/"$outprefix"-strip-`printf "%03d" "$stripnumber"`.tif
+                stripnumber=$((stripnumber+1))
+                mv ${filesJ[j]} $outfile
+                if [ "$debug" -gt 0 ]; then
+                    ln -f $outfile ${filesJ[j]}
+                fi
+                echo saving $outfile
+            fi
         done
     done
 fi
