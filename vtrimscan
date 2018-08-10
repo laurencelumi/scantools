@@ -326,6 +326,59 @@ for ((i=0;i<num;i++)); do
 done
 DEBUG declare -p boxes
 
+if [ $mode = "gap" ]; then
+    #expimental code, this works but may need to revisit
+    #work out the ratio of strip
+    X=`identify -format "%w" $infile `
+    stripratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y ]" info:`
+    DEBUG echo stripratio $stripratio
+    if (( $(echo "$stripratio > 5" | bc -l) )); then
+        frameratio=1.2
+        DEBUG echo guessing 35mm
+    else
+        frameratio=0.8
+        DEBUG echo guessing 35mm
+    fi
+
+    # an attempt to identiy 35mm
+    for ((i=0;i<num;i++)); do
+        ibox=(${boxes[i]//:/ })
+
+        icolor="${ibox[0]}"
+        iX="${ibox[1]}"
+        ix="${ibox[3]}"
+
+        ratio=`convert -size 1x1 xc: -format "%[fx: $iX"/"$Y]" info:`
+        DEBUG echo iratio $ratio 
+        #maybe need flags for 35mm and 120 ratios
+        if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
+            DEBUG echo suspect $icolor $ratio box: ${boxes[i]}
+
+            for ((j=$i+1;j<num;j++)); do
+                jbox=(${boxes[j]//:/ })
+
+                jcolor="${jbox[0]}"
+                jX="${jbox[1]}"
+                jx="${jbox[3]}"
+
+                ratio=`convert -size 1x1 xc: -format "%[fx: $jX"/"$Y]" info:`
+                DEBUG echo jratio $ratio 
+                if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
+                    DEBUG echo following suspect $color $ratio box: ${boxes[j]}
+                    #merge box and nextbox
+                    boxes[i]="B:0:0:0:0"
+                    iX=$((iX+$jX))
+                    boxes[j]="W:""$iX":1:"$ix":0
+                    i=$j
+                else
+                    break;
+                fi
+            done
+        fi
+    done
+    DEBUG declare -p boxes
+fi
+
 DEBUG echo cropping frames
 for ((i=0;i<num;i++)); do
     box=(${boxes[i]//:/ })
@@ -335,19 +388,13 @@ for ((i=0;i<num;i++)); do
     #you no longer have the correct height
     # Y="${box[2]}"
     x="${box[3]}"
-    y="${box[4]}"
+    #y="${box[4]}"
+    y=0
 
     if [ $extend -ne 0 ]; then
         X=$((X-($extend*2)))
         x=$((x+$extend))
     fi
-
-    #ratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y]" info:`
-    #DEBUG echo ratio $ratio
-    #expirmental code, for the moment just adjust the threshold so not so agressive and manual chop film
-    #if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < 1" | bc -l) )) ; then
-    #        echo suspect $ratio
-    #    fi
 
     if [ "$debug" -lt 2 ] && [ "$color" = "B" ]; then
         DEBUG echo skipping $i XYxy $X $Y $x $y
