@@ -68,7 +68,7 @@ comment="Processed with invertscan"
 DEBUG echo -set comment "$comment"
 prof_dir=$HOME/.scantools
 approach="m_printing_density"
-dmax=1.81 #max value cineon
+dmax_default=1.81 #max value cineon
 
 while [ $# -gt 0 ]
 do
@@ -244,12 +244,12 @@ if [ $approach = "m_printing_density" ]; then
         r_base=$2
         g_base=$3
         b_base=$4
-        echo using FB: $1 $r_base $g_base $b_base
+        echo using profile FB: $1 $r_base $g_base $b_base
     else
         #r_base=0.358396
         #g_base=0.358396
         #b_base=0.358396
-        echo using FB: $r_base $g_base $b_base
+        echo using calculated FB: $r_base $g_base $b_base
     fi
 
     # calculate the film density values
@@ -277,6 +277,9 @@ if [ $approach = "m_printing_density" ]; then
     if [ "$dmax_input" = "auto" ]; then
         dmax=$dmax_measured
         echo using auto calculated dmax
+    elif [ -z "$dmax_input" ]; then
+        dmax=$dmax_default
+        echo using default dmax of:$dmax
     else
         dmax=$dmax_input
     fi
