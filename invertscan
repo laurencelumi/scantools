@@ -68,7 +68,7 @@ comment="Processed with invertscan"
 DEBUG echo -set comment "$comment"
 prof_dir=$HOME/.scantools
 approach="m_printing_density"
-dmax=1.81 #max value cineon
+dmax_default=1.81 #max value cineon
 
 while [ $# -gt 0 ]
 do
@@ -153,13 +153,13 @@ outfile=$2
 
 if [ -d $infile ]; then
     echo "processing a directory"
-    outdir=`basename ${infile%".tif"}-P`
+    outdir=`basename ${infile%".tif"}`-P
     DEBUG   echo outdir: $outdir
     mapfile files < <(ls $infile/*.tif)
     for ((i=0;i<${#files[*]};i++)); do
         echo "processing" ${files[i]}
         mkdir -p $outdir
-        outfile="$outdir"/`basename ${files[i]%".tif"}-P.tif`
+        outfile="$outdir"/`basename ${files[i]%".tif"}`-P.tif
         DEBUG set -x
         invertscan $options $zip ${files[i]} $outfile
         set +x
@@ -177,7 +177,7 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [ -z $outfile ]; then
-    outfile=`basename ${infile%".tif"}-P.tif`
+    outfile=`basename ${infile%".tif"}`-P.tif
 fi
 DEBUG   echo outfile: $outfile
 
@@ -244,12 +244,12 @@ if [ $approach = "m_printing_density" ]; then
         r_base=$2
         g_base=$3
         b_base=$4
-        echo using FB: $1 $r_base $g_base $b_base
+        echo using profile FB: $1 $r_base $g_base $b_base
     else
         #r_base=0.358396
         #g_base=0.358396
         #b_base=0.358396
-        echo using FB: $r_base $g_base $b_base
+        echo using calculated FB: $r_base $g_base $b_base
     fi
 
     # calculate the film density values
@@ -277,6 +277,9 @@ if [ $approach = "m_printing_density" ]; then
     if [ "$dmax_input" = "auto" ]; then
         dmax=$dmax_measured
         echo using auto calculated dmax
+    elif [ -z "$dmax_input" ]; then
+        dmax=$dmax_default
+        echo using default dmax of:$dmax
     else
         dmax=$dmax_input
     fi
