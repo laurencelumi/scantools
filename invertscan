@@ -153,13 +153,13 @@ outfile=$2
 
 if [ -d $infile ]; then
     echo "processing a directory"
-    outdir=`basename ${infile%".tif"}-P`
+    outdir=`basename ${infile%".tif"}`-P
     DEBUG   echo outdir: $outdir
     mapfile files < <(ls $infile/*.tif)
     for ((i=0;i<${#files[*]};i++)); do
         echo "processing" ${files[i]}
         mkdir -p $outdir
-        outfile="$outdir"/`basename ${files[i]%".tif"}-P.tif`
+        outfile="$outdir"/`basename ${files[i]%".tif"}`-P.tif
         DEBUG set -x
         invertscan $options $zip ${files[i]} $outfile
         set +x
@@ -177,7 +177,7 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [ -z $outfile ]; then
-    outfile=`basename ${infile%".tif"}-P.tif`
+    outfile=`basename ${infile%".tif"}`-P.tif
 fi
 DEBUG   echo outfile: $outfile
 
