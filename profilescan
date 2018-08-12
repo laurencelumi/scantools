@@ -83,7 +83,7 @@ do
             break
             ;;
         -*)    # any other - argument
-            echo "--- UNKNOWN OPTION ---"
+            echo "--- UNKNOWN OPTION ---" $1
             usage
             ;;
         *)     # end of arguments
