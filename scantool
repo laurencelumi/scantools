@@ -92,6 +92,12 @@ do
                 usage
             fi
             ;;
+        -c1)
+            options+=" -c1"
+            ;;
+        -m1)
+            options+=" -m1"
+            ;;
         -p)    # profile name
             shift
             options+=" -p $1"
@@ -215,7 +221,7 @@ if [ $mode = "invert" ] || [ $mode = "both" ]; then
     for ((i=0;i<${#invertfiles[*]};i++)); do
         mkdir -p "$outprefix"-P
         outfile="$outprefix"-P/`basename ${invertfiles[i]%".tif"}-P.tif`
-        invertscan -m1 $options $zip ${invertfiles[i]} $outfile
+        invertscan $options $zip ${invertfiles[i]} $outfile
     done
 
 
