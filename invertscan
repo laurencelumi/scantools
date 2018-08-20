@@ -82,11 +82,8 @@ do
             ;;
         -dd)	debug=2
             ;;
-        -c6)	approach="c_invert_dpx"
-            ;;
-        -c7)	approach="c_rethink_2"
-            ;;
-        -c8)	approach="c_printing_density"
+        -c1)	approach="c_printing_density"
+            options+=" -c1"
             ;;
         -m1)	approach="m_printing_density" #monochrome printing density current default
             options+=" -m1"
@@ -153,17 +150,20 @@ outfile=$2
 
 if [ -d $infile ]; then
     echo "processing a directory"
+    DEBUG set -x
     outdir=`basename ${infile%".tif"}`-P
     DEBUG   echo outdir: $outdir
     mapfile files < <(ls $infile/*.tif)
     for ((i=0;i<${#files[*]};i++)); do
         echo "processing" ${files[i]}
-        mkdir -p $outdir
-        outfile="$outdir"/`basename ${files[i]%".tif"}`-P.tif
         DEBUG set -x
+        mkdir -p $outdir
+        outfile=`basename ${files[i]}`
+        outfile="$outdir"/${outfile%".tif"}-P.tif
         invertscan $options $zip ${files[i]} $outfile
         set +x
     done
+    exit 0
 fi
 
 
@@ -210,7 +210,7 @@ if [ $approach = "m_printing_density" ]; then
             -set comment "$comment" +compress "$tmpfileprefix"_input_for_calculations.tif
     fi
 
-    # calculate the film value and maxmim density, ideally this should be calculated before and passed in
+    # calculate the film min and maximum values
     eval set -- `convert "$infile[0]" $CSPACE -strip -blur 20x65355 \
         -shave 100x100 \
         -format\
@@ -246,9 +246,6 @@ if [ $approach = "m_printing_density" ]; then
         b_base=$4
         echo using profile FB: $1 $r_base $g_base $b_base
     else
-        #r_base=0.358396
-        #g_base=0.358396
-        #b_base=0.358396
         echo using calculated FB: $r_base $g_base $b_base
     fi
 
@@ -329,10 +326,170 @@ if [ $approach = "m_printing_density" ]; then
     if [ $exiftool -eq 1 ]; then
 
         caption="fb used: $r_base, $g_base, $b_base\n"
-        caption+="min:     ${maxmins[0]}, ${maxmins[1]}, ${maxmins[2]}\n"
-        caption+="max:     ${maxmins[3]}, ${maxmins[4]}, ${maxmins[5]}\n"
-        caption+="log(min):${densities[0]}, ${densities[1]}, ${densities[2]}\n"
-        caption+="log(max):${densities[3]}, ${densities[4]}, ${densities[5]}\n"
+        caption+="max:     ${maxmins[0]}, ${maxmins[1]}, ${maxmins[2]}\n"
+        caption+="min:     ${maxmins[3]}, ${maxmins[4]}, ${maxmins[5]}\n"
+        caption+="log(max):${densities[0]}, ${densities[1]}, ${densities[2]}\n"
+        caption+="log(min):${densities[3]}, ${densities[4]}, ${densities[5]}\n"
+        caption+="dMax:    ${densities[6]}, ${densities[7]}, ${densities[8]}"
+        caption=`printf "$caption"`
+        DEBUG echo "$caption"
+
+        exiftool -overwrite_original -Model="DMAX $dmax_input $dmax_measured"\
+            "-iptc:caption-abstract=$caption"\
+            "$outfile"
+    fi
+
+    echo inverting: "$outfile"
+
+fi
+
+if [ $approach = "c_printing_density" ]; then
+    DEBUG echo approach = $approach
+    echo "Expirmental code"
+
+    if [ "$debug" -eq 2 ]; then
+        convert "$infile[0]" $CSPACE -strip -blur 20x65355 \
+        -shave 100x100 \
+            -set comment "$comment" +compress "$tmpfileprefix"_input_for_calculations.tif
+    fi
+
+    # calculate the film min and maximum values
+    eval set -- `convert "$infile[0]" $CSPACE -strip -blur 20x65355 \
+        -shave 100x100 \
+        -format\
+        "%[fx: maxima.r ] %[fx: maxima.g ] %[fx: maxima.b ]\
+        %[fx: minima.r ] %[fx: minima.g ] %[fx: minima.b ]"\
+        info:`
+
+    echo "Normalised values are:"
+    echo "       max      min"
+    #     Green: 0.358328 0.0297856
+    echo "Red:  " $1 $4
+    echo "Green:" $2 $5
+    echo "Blue: " $3 $6
+
+    maxmins=($*)
+    if [[ -z $r_base ]];then
+        r_base=$1
+    fi
+    if [[ -z $g_base ]];then
+        g_base=$2
+    fi
+    if [[ -z $b_base ]];then
+        b_base=$3
+    fi
+    r_max=$4
+    g_max=$5
+    b_max=$6
+
+    if [ ! -z $profile_name ]; then
+        set -- `tail -1 "$prof_dir"/"$profile_name"`
+        r_base=$2
+        g_base=$3
+        b_base=$4
+        echo using profile FB: $1 $r_base $g_base $b_base
+    else
+        echo using calculated FB: $r_base $g_base $b_base
+    fi
+
+    # calculate the film density values
+    eval set -- `convert xc: -format\
+        "%[fx: -log($r_base) ] \
+        %[fx: -log($g_base) ] \
+        %[fx: -log($b_base) ] \
+        %[fx: -log($r_max) ] \
+        %[fx: -log($g_max) ] \
+        %[fx: -log($b_max) ] \
+        %[fx: -log($r_max) - (-log($r_base)) ] \
+        %[fx: -log($g_max) - (-log($g_base)) ] \
+        %[fx: -log($b_max) - (-log($b_base)) ] "\
+        info:`
+
+    echo "log() values are:"
+    echo "       max      min       DMax"
+    echo "Red:  " $1 $4 $7
+    echo "Green:" $2 $5 $8
+    echo "Blue: " $3 $6 $9
+
+    dmax_measured=$9
+
+    densities=($*)
+    if [ "$dmax_input" = "auto" ]; then
+        echo TODO need to do check of all three maxes
+        dmax=$dmax_measured
+        echo using auto calculated dmax
+    elif [ -z "$dmax_input" ]; then
+        dmax=$dmax_default
+        echo using default dmax of:$dmax
+    else
+        dmax=$dmax_input
+    fi
+
+    #these worked for well for the big portra scans
+    rscale=0.852
+    gscale=1.063
+    bscale=1.082
+
+    #rscale=1
+    #gscale=1
+    #bscale=1
+
+    eval set -- `convert xc: -format "%[fx: 2^16/(10^($bscale*$dmax*.6)) ]" info:`
+    scale=$1
+    echo dmax: $dmax
+    echo scale: $scale
+
+    #convert per ideas dpx http://dicomp.arri.de/digital/digital_systems/DIcompanion/ch03.html#scene2digital_linfull
+    #    convert $infile[0] -strip $CSPACE \
+        #        -channel R -fx "dab=-log(u)-(-log($r_base));(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        #        -channel G -fx "dab=-log(u)-(-log($g_base));(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        #        -channel B -fx "dab=-log(u)-(-log($b_base));(((10^(dab*.6))*$scale)-$scale)/QuantumRange" \
+        #        -colorspace sRGB \
+        #        -set comment "$comment" $zip "$outfile"
+
+
+    DEBUG set -x;
+
+    convert -size 65536x1 xc: \
+        -fx "i/(w-1)" \
+        -channel R -fx "dab=-log(u)-(-log($r_base));(((10^($rscale*dab*.6))*$scale)-$scale)/QuantumRange" \
+        -channel G -fx "dab=-log(u)-(-log($g_base));(((10^($gscale*dab*.6))*$scale)-$scale)/QuantumRange" \
+        -channel B -fx "dab=-log(u)-(-log($b_base));(((10^($bscale*dab*.6))*$scale)-$scale)/QuantumRange" \
+        -set comment "$comment" +compress "$tmpfileprefix"_clut.tif
+
+    if [ "$debug" -eq 2 ]; then
+        convert -size 65536x1 xc: \
+            -fx "i/(w-1)" \
+            -channel B -fx "debug(dab=-log(u)-(-log($b_base)));debug((((10^(dab*.6))*$scale)-$scale)/QuantumRange)" \
+            null:
+    fi
+
+    if [ ! -x "$(command -v exiftool)" ]; then
+        comment="film base:$r_base dmax:$dmax Processed with invertscan"
+    else
+        exiftool=1
+    fi
+
+    convert $infile[0] "$tmpfileprefix"_clut.tif -clut -strip $CSPACE \
+        -colorspace sRGB \
+        -profile "$prof_dir"/ra4.icc \
+        -set comment "$comment" $zip "$outfile"
+
+    #convert $infile[0] "$tmpfileprefix"_clut.tif -clut -strip $CSPACE \
+    #    -color-matrix \
+    #    "1.4397684822	-0.3534344629	-0.0863340647
+    #-0.0818808588	1.1424821575	-0.06060129
+    #-0.0169540131	-0.0896409556	1.1065949943"\
+    #    -colorspace sRGB \
+    #    -set comment "$comment" $zip "$outfile"
+
+    if [ $exiftool -eq 1 ]; then
+
+        caption="fb used: $r_base, $g_base, $b_base\n"
+        caption+="max:     ${maxmins[0]}, ${maxmins[1]}, ${maxmins[2]}\n"
+        caption+="min:     ${maxmins[3]}, ${maxmins[4]}, ${maxmins[5]}\n"
+        caption+="log(max):${densities[0]}, ${densities[1]}, ${densities[2]}\n"
+        caption+="log(min):${densities[3]}, ${densities[4]}, ${densities[5]}\n"
         caption+="dMax:    ${densities[6]}, ${densities[7]}, ${densities[8]}"
         caption=`printf "$caption"`
         DEBUG echo "$caption"
