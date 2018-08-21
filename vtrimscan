@@ -212,7 +212,7 @@ do
             break
             ;;
         -*)    # any other - argument
-            echo "--- UNKNOWN OPTION ---"
+            echo "--- UNKNOWN OPTION ---" $1
             usage
             ;;
         *)     # end of arguments
@@ -349,7 +349,7 @@ if [ $mode = "gap" ]; then
         ix="${ibox[3]}"
 
         ratio=`convert -size 1x1 xc: -format "%[fx: $iX"/"$Y]" info:`
-        DEBUG echo iratio $ratio 
+        DEBUG echo iratio $ratio
         #maybe need flags for 35mm and 120 ratios
         if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
             DEBUG echo suspect $icolor $ratio box: ${boxes[i]}
@@ -362,7 +362,7 @@ if [ $mode = "gap" ]; then
                 jx="${jbox[3]}"
 
                 ratio=`convert -size 1x1 xc: -format "%[fx: $jX"/"$Y]" info:`
-                DEBUG echo jratio $ratio 
+                DEBUG echo jratio $ratio
                 if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
                     DEBUG echo following suspect $color $ratio box: ${boxes[j]}
                     #merge box and nextbox
