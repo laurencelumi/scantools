@@ -114,7 +114,6 @@ debug=0
 tmpprefix=$tmpdir"_vt_"
 filmbase=5 #can reduce this value if increase the radius of the blur
 framenumber=1
-pixel=250
 extend=0
 zip="+compress"
 
@@ -271,7 +270,7 @@ convert "$tmpfile0" -scale x1! +compress "$tmpfileprefix"1work.tif
 
 if [ $mode = "gap" ]; then
     #note radius of 25 means at least one gap needs be at least 50pix wide
-    stripcolor=(`convert -shave 500x0 "$tmpfileprefix"1work.tif -strip -blur 25x65355 -format \
+    stripcolor=(`convert -shave "$shave"x0 "$tmpfileprefix"1work.tif -strip -blur 25x65355 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
     exposure_increase=(`convert -size 1x1 xc: -format \
         "%[fx: ${stripcolor[0]}^-1*100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] %[fx: ${stripcolor[0]}^-1 * 100 ] " info:`)
@@ -280,7 +279,7 @@ if [ $mode = "gap" ]; then
         -channel G -evaluate multiply "${exposure_increase[1]}"\
         -channel B -evaluate multiply "${exposure_increase[2]}"\
          "$tmpfileprefix"2work.tif
-    stripcolor=(`convert -shave 500x0 "$tmpfileprefix"2work.tif -strip -blur 25x65355 -format \
+    stripcolor=(`convert -shave "$shave"x0 "$tmpfileprefix"2work.tif -strip -blur 25x65355 -format \
         "%[fx: maxima.r * 100 ] %[fx: maxima.g * 100 ] %[fx: maxima.b * 100 ] " info:`)
     opaque="rgb("${stripcolor[0]}"%,"${stripcolor[1]}"%,"${stripcolor[2]}"%)"
 else
@@ -293,6 +292,10 @@ fi
 convert "$tmpfileprefix"2work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"3work.tif
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
 #convert "$tmpfileprefix"3work.tif -morphology open "5x1:0,1,1,1,0" "$tmpfileprefix"4work.tif
+if [ -z $pixel ];then 
+    let pixel=$Y/10
+fi
+    
 convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
 
 arr=()
@@ -337,7 +340,7 @@ if [ $mode = "gap" ]; then
         DEBUG echo guessing 35mm
     else
         frameratio=0.8
-        DEBUG echo guessing 35mm
+        DEBUG echo guessing 120mm
     fi
 
     # an attempt to identiy 35mm
