@@ -432,13 +432,13 @@ if [ $approach = "c_printing_density" ]; then
     fi
 
     #these worked for well for the big portra scans
-    rscale=0.852
-    gscale=1.063
-    bscale=1.082
+    #rscale=0.852
+    #gscale=1.063
+    #bscale=1.082
 
-    #rscale=1
-    #gscale=0.75
-    #bscale=1
+    rscale=1
+    gscale=1
+    bscale=1
 
     eval set -- `convert xc: -format "%[fx: 2^16/(10^($bscale*$dmax*.6)) ]" info:`
     scale=$1
