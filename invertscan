@@ -331,9 +331,9 @@ if [ $approach = "m_printing_density" ]; then
         caption="fb used: $r_base, $g_base, $b_base\n"
         caption+="max:     ${maxmins[0]}, ${maxmins[1]}, ${maxmins[2]}\n"
         caption+="min:     ${maxmins[3]}, ${maxmins[4]}, ${maxmins[5]}\n"
-        caption+="log(max):${densities[0]}, ${densities[1]}, ${densities[2]}\n"
-        caption+="log(min):${densities[3]}, ${densities[4]}, ${densities[5]}\n"
-        caption+="dMax:    ${densities[6]}, ${densities[7]}, ${densities[8]}"
+        caption+="FB D    :${densities[0]}, ${densities[1]}, ${densities[2]}\n"
+        caption+="Shadow D:${densities[3]}, ${densities[4]}, ${densities[5]}\n"
+        caption+="D-Max   :${densities[6]}, ${densities[7]}, ${densities[8]}"
         caption=`printf "$caption"`
         DEBUG echo "$caption"
 
@@ -436,7 +436,7 @@ if [ $approach = "c_printing_density" ]; then
     #gscale=1.063
     #bscale=1.082
 
-    rscale=1
+    rscale=1.082602577 #from page 8
     gscale=1
     bscale=1
 
@@ -494,9 +494,9 @@ if [ $approach = "c_printing_density" ]; then
         caption="fb used: $r_base, $g_base, $b_base\n"
         caption+="max:     ${maxmins[0]}, ${maxmins[1]}, ${maxmins[2]}\n"
         caption+="min:     ${maxmins[3]}, ${maxmins[4]}, ${maxmins[5]}\n"
-        caption+="log(max):${densities[0]}, ${densities[1]}, ${densities[2]}\n"
-        caption+="log(min):${densities[3]}, ${densities[4]}, ${densities[5]}\n"
-        caption+="dMax:    ${densities[6]}, ${densities[7]}, ${densities[8]}"
+        caption+="FB D    :${densities[0]}, ${densities[1]}, ${densities[2]}\n"
+        caption+="Shadow D:${densities[3]}, ${densities[4]}, ${densities[5]}\n"
+        caption+="D-Max   :${densities[6]}, ${densities[7]}, ${densities[8]}"
         caption=`printf "$caption"`
         DEBUG echo "$caption"
 
