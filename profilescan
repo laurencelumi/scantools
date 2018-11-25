@@ -13,7 +13,7 @@ usage()
 	echo >&2 ""
 	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $progname [-d] [-dd] [-l] [-s name] [-fb] [-p name] infile
+        USAGE: $progname [-d] [-dd] [-l] [-s name] [-fb] [-p name] [-crop XxY+x+y] infile
 USAGE: $progname [-h] [-help]
 
 OPTIONS:
@@ -29,7 +29,7 @@ help()
 
 NAME: $progname 
 
-PURPOSE: TODO
+PURPOSE: creates profile information for later use.
 
 
 Arguments:
@@ -79,6 +79,10 @@ do
             shift
             profile_name="$1"
             ;;
+        -crop)    # crop value
+            shift
+            crop="-crop $1"
+            ;;
         -)    # STDIN and end of arguments
             break
             ;;
@@ -116,6 +120,7 @@ if [ "$mode" = "filmbase" ]; then
     
     # calculate the filmbase values 
     eval set -- `convert "$infile[0]" $CSPACE -strip \
+        $crop\
         -format\
         "%[fx: mean.r ] %[fx: mean.g ] %[fx: mean.b ]"\
         info:`

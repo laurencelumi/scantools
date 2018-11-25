@@ -85,6 +85,9 @@ do
             ;;
         -d)	debug=1
             ;;
+        -dd)	debug=2
+            v_debug="-d"
+            ;;
         -n)    # number
             shift
             framenumber="$1"
@@ -179,7 +182,11 @@ if [ -z $outprefix ]; then
 fi
 
 
-tmpfileprefix="$tmpprefix"`date +%N``basename "$outprefix"`
+if [ "$debug" -eq 0 ]; then
+    tmpfileprefix="$tmpprefix"`date +%N`_`basename "$outprefix"`
+else
+    tmpfileprefix="$tmpprefix"debug_`basename "$outprefix"`
+fi
 DEBUG echo tmpfileprefix: $tmpfileprefix
 DEBUG echo outprefix: $outprefix
 
@@ -190,16 +197,16 @@ if [ $mode = "frames" ] || [ $mode = "both" ]; then
     for infile in "${infiles[@]}"; do
         echo processing $infile
         #because the strips of film will contain at some gaps the fuzz threshhold can be increased
-        mapfile files < <(vtrimscan vstrip -f 4 $infile $tmpfileprefix | sed 's/^cropping //g' )
+        mapfile files < <(vtrimscan vstrip $v_debug -f 4 $infile $tmpfileprefix | grep CROPPING | sed 's/^CROPPING //g' )
         DEBUG echo files: ${files[*]}
 
 
         for ((i=0;i<${#files[*]};i++)); do
 
-            mapfile filesJ < <(vtrimscan ends -r 90 -f 2 ${files[i]} | grep -v orientating | sed 's/^cropping //g' )
+            mapfile filesJ < <(vtrimscan ends $v_debug -r 90 -f 2 ${files[i]} | grep CROPPING | sed 's/^CROPPING //g' )
             DEBUG echo files j:${filesJ[*]}
             for ((j=0;j<${#filesJ[*]};j++)); do
-                mapfile filesK < <(vtrimscan gap $fuzz $zip ${filesJ[j]} | sed 's/^cropping //g' )
+                mapfile filesK < <(vtrimscan gap $v_debug $fuzz $zip ${filesJ[j]} | grep CROPPING | sed 's/^CROPPING //g' )
                 DEBUG echo files k:${filesK[*]}
                 for ((k=0;k<${#filesK[*]};k++)); do
                     mkdir -p "$outprefix"

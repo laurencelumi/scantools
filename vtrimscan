@@ -239,7 +239,11 @@ if [ -z $outprefix ]; then
 else
     outprefix=${outprefix%".tif"}_
 fi
-tmpfileprefix="$tmpprefix"`date +%N``basename "$outprefix"`
+if [ "$debug" -eq 0 ]; then
+    tmpfileprefix="$tmpprefix"`date +%N`_`basename "$outprefix"` #in debug don't use the clock
+else
+    tmpfileprefix="$tmpprefix"debug_`basename "$outprefix"` #in debug don't use the clock
+fi
 DEBUG echo tmpfileprefix: $tmpfileprefix
 DEBUG echo outprefix: $outprefix
 
@@ -290,13 +294,15 @@ fi
 
 
 convert "$tmpfileprefix"2work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"3work.tif
+
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
-#convert "$tmpfileprefix"3work.tif -morphology open "5x1:0,1,1,1,0" "$tmpfileprefix"4work.tif
-if [ -z $pixel ];then 
-    let pixel=$Y/10
+if [ -z $pixel ];then
+    let pixel=$Y/20
 fi
-    
-convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
+DEBUG echo pixel $pixel
+#convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
+#this should remove false film gaps the pixel size should be a suitable ratio to throw away small gaps that are false positives
+convert "$tmpfileprefix"3work.tif -morphology close "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
 
 arr=()
 OLD_IFS=$IFS
@@ -343,7 +349,6 @@ if [ $mode = "gap" ]; then
         DEBUG echo guessing 120mm
     fi
 
-    # an attempt to identiy 35mm
     for ((i=0;i<num;i++)); do
         ibox=(${boxes[i]//:/ })
 
@@ -352,10 +357,9 @@ if [ $mode = "gap" ]; then
         ix="${ibox[3]}"
 
         ratio=`convert -size 1x1 xc: -format "%[fx: $iX"/"$Y]" info:`
-        DEBUG echo iratio $ratio
         #maybe need flags for 35mm and 120 ratios
         if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
-            DEBUG echo suspect $icolor $ratio box: ${boxes[i]}
+            DEBUG echo found a suspect $icolor ratio: $ratio box: ${boxes[i]}
 
             for ((j=$i+1;j<num;j++)); do
                 jbox=(${boxes[j]//:/ })
@@ -365,18 +369,25 @@ if [ $mode = "gap" ]; then
                 jx="${jbox[3]}"
 
                 ratio=`convert -size 1x1 xc: -format "%[fx: $jX"/"$Y]" info:`
-                DEBUG echo jratio $ratio
                 if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
-                    DEBUG echo following suspect $color $ratio box: ${boxes[j]}
+                    DEBUG echo found a following suspect $color ratio: $ratio box: ${boxes[j]}
                     #merge box and nextbox
+                    DEBUG echo merging
+                    DEBUG echo before box i: ${boxes[i]}
+                    DEBUG echo before box j: ${boxes[j]}
                     boxes[i]="B:0:0:0:0"
+                    DEBUG echo after box i: ${boxes[i]}
                     iX=$((iX+$jX))
                     boxes[j]="W:""$iX":1:"$ix":0
                     i=$j
+                    DEBUG echo after box j: ${boxes[j]}
                 else
+                    DEBUG echo following non-suspect $color ratio: $ratio box: ${boxes[j]}
                     break;
                 fi
             done
+        else
+            DEBUG echo non-suspect $icolor ratio: $ratio box: ${boxes[i]}
         fi
     done
     DEBUG declare -p boxes
@@ -406,7 +417,7 @@ for ((i=0;i<num;i++)); do
 
     outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
     framenumber=$((framenumber+1))
-    echo cropping $outfile
+    echo CROPPING $outfile #CROPPING is keyword used to filter output
     DEBUG set -x;
     convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $zip $outfile
     set +x
