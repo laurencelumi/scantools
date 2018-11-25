@@ -296,13 +296,21 @@ fi
 convert "$tmpfileprefix"2work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"3work.tif
 
 #morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
-if [ -z $pixel ];then
-    let pixel=$Y/20
+if [ $mode = "gap" ]; then
+    if [ -z $pixel ];then
+        let pixel=$Y/20
+    fi
+    DEBUG echo pixel $pixel
+    #this should remove false film gaps the pixel size should be a suitable ratio to throw away small gaps that are false positives
+    convert "$tmpfileprefix"3work.tif -morphology close "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
+else
+    if [ -z $pixel ];then
+        let pixel=$Y/10
+    fi
+    DEBUG echo pixel $pixel
+    #this should remove false strips of film, because of holes in the holder
+    convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
 fi
-DEBUG echo pixel $pixel
-#convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
-#this should remove false film gaps the pixel size should be a suitable ratio to throw away small gaps that are false positives
-convert "$tmpfileprefix"3work.tif -morphology close "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
 
 arr=()
 OLD_IFS=$IFS
