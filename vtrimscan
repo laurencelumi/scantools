@@ -102,7 +102,7 @@ if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
     #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
     #caution this may have side effects as the logic is different compared to the low debug levels
     for ((i=0;i<${#files[*]};i++)); do
-        convert ${files[i]} -scale x"$Y"! +compress ${files[i]}
+        convert ${files[i]} -scale x"$Y"! -compress zip ${files[i]}
     done
 fi
 
