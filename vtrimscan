@@ -342,10 +342,12 @@ if [ $mode = "gap" ]; then
     X=`identify -format "%w" $infile `
     stripratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y ]" info:`
     DEBUG echo stripratio $stripratio
-    if (( $(echo "$stripratio > 5" | bc -l) )); then
-        frameratio=1.2
+    if (( $(echo "$stripratio > 5" | bc -l) )); then #scope for tuning these parameters
+        gapratio=0.1
+        frameratio=1.3
         DEBUG echo guessing 35mm
     else
+        gapratio=0.1
         frameratio=0.8
         DEBUG echo guessing 120mm
     fi
@@ -359,8 +361,8 @@ if [ $mode = "gap" ]; then
 
         ratio=`convert -size 1x1 xc: -format "%[fx: $iX"/"$Y]" info:`
         #maybe need flags for 35mm and 120 ratios
-        if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
-            DEBUG echo found a suspect $icolor ratio: $ratio box: ${boxes[i]}
+        if ( [ $icolor =  "B" ] && (( $(echo "$ratio > $gapratio" | bc -l) )) ) || ( [ $icolor =  "W" ] && (( $(echo "$ratio < $frameratio" | bc -l) )) ) ; then
+            DEBUG echo found a suspect ratio: $ratio box: ${boxes[i]}
 
             for ((j=$i+1;j<num;j++)); do
                 jbox=(${boxes[j]//:/ })
@@ -370,8 +372,8 @@ if [ $mode = "gap" ]; then
                 jx="${jbox[3]}"
 
                 ratio=`convert -size 1x1 xc: -format "%[fx: $jX"/"$Y]" info:`
-                if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
-                    DEBUG echo found a following suspect $color ratio: $ratio box: ${boxes[j]}
+                if (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
+                    DEBUG echo found the following suspect ratio: $ratio box: ${boxes[j]}
                     #merge box and nextbox
                     DEBUG echo merging
                     DEBUG echo before box i: ${boxes[i]}
@@ -382,13 +384,19 @@ if [ $mode = "gap" ]; then
                     boxes[j]="W:""$iX":1:"$ix":0
                     i=$j
                     DEBUG echo after box j: ${boxes[j]}
+                    #if we are now on black box and total ratio is greater frameratio break out
+                    ratio=`convert -size 1x1 xc: -format "%[fx: $iX"/"$Y]" info:`
+                    if ( [ $jcolor =  "B" ] && (( $(echo "$ratio > $frameratio" | bc -l) )) ) ; then
+                        DEBUG echo the last merged frame was black and total merged ratio is now $ratio so ending this merge iteration
+                        break;
+                    fi
                 else
-                    DEBUG echo following non-suspect $color ratio: $ratio box: ${boxes[j]}
+                    DEBUG echo following non-suspect ratio: $ratio box: ${boxes[j]}
                     break;
                 fi
             done
         else
-            DEBUG echo non-suspect $icolor ratio: $ratio box: ${boxes[i]}
+            DEBUG echo non-suspect ratio: $ratio box: ${boxes[i]}
         fi
     done
     DEBUG declare -p boxes
