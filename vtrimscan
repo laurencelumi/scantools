@@ -342,7 +342,6 @@ done
 DEBUG declare -p boxes
 
 if [ $mode = "gap" ]; then
-    #expimental code, this works but may need to revisit
     #work out the ratio of strip
     X=`identify -format "%w" $infile `
     stripratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y ]" info:`
