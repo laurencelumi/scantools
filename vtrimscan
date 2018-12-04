@@ -97,7 +97,10 @@ if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
 fi
 DEBUG set -x
 if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
-    touch "$tmpfileprefix"0work.tif
+    #touch "$tmpfileprefix"0work.tif
+    if [ "$mode" = "gap" ] || [ "$mode" = "ends" ]; then #restore the correct size works better with rawtherepee
+        convert "$tmpfileprefix"0work.tif -bordercolor Tomato -border 0x"$shave" -compress zip "$tmpfileprefix"0work.tif
+    fi
     mapfile files < <(ls "$tmpfileprefix"1work.tif "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif "$tmpfileprefix"4work.tif)
     #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
     #caution this may have side effects as the logic is different compared to the low debug levels
@@ -258,13 +261,15 @@ fi
 DEBUG set -x;
 
 Y=`identify -format "%h" $infile `
-let shave=$Y/25
+shave=0 #shave is not used for vstrip but initialise it anyway
 
 tmpfile0="$tmpfileprefix"0work.tif
 if [ "$mode" = "gap" ]; then
+    let shave=$Y/25
     #remove any sprocket holes or missing bits of film use a default of 5% this mean the film base must be darker than 5%
     convert $infile -shave 0x$shave -fuzz "$filmbase"% -fill black -opaque white +compress +repage "$tmpfile0"
 elif [ "$mode" = "ends" ]; then
+let shave=$Y/12 #better tuned for when the film holder is slightly offset
     convert $infile -shave 0x$shave -fuzz "$filmbase"% -fill black -opaque white +compress "$tmpfile0"
 else
     tmpfile0="$infile"
@@ -344,7 +349,7 @@ if [ $mode = "gap" ]; then
     DEBUG echo stripratio $stripratio
     if (( $(echo "$stripratio > 5" | bc -l) )); then #scope for tuning these parameters
         gapratio=0.1
-        frameratio=1.3
+        frameratio=1.35
         DEBUG echo guessing 35mm
     else
         gapratio=0.1
