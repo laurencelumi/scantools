@@ -92,26 +92,13 @@ qsort() {
    done
 }
 function cleanup {
-if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
-    rm -f "$tmpfileprefix"*
-fi
-DEBUG set -x
-if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
-    #touch "$tmpfileprefix"0work.tif
-    if [ "$mode" = "gap" ] || [ "$mode" = "ends" ]; then #restore the correct size works better with rawtherepee
-        convert "$tmpfileprefix"0work.tif -bordercolor Tomato -border 0x"$shave" -compress zip "$tmpfileprefix"0work.tif &
+    DEBUG set -x
+    rm -f "$tmpfileprefix".mpc "$tmpfileprefix".cache
+    if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
+        rm -f "$tmpfileprefix"* 
     fi
-    mapfile files < <(ls "$tmpfileprefix"1work.tif "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif "$tmpfileprefix"4work.tif)
-    #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
-    #caution this may have side effects as the logic is different compared to the low debug levels
-    for ((i=0;i<${#files[*]};i++)); do
-        convert ${files[i]} -scale x"$Y"! -compress zip ${files[i]} &
-    done
-    wait
-fi
-
 }
-trap cleanup EXIT
+trap cleanup 1 2 3 6
 
 tmpdir="./"
 debug=0
@@ -254,9 +241,13 @@ DEBUG echo outprefix: $outprefix
 #first orientate the image if necessary
 if [ ! -z "$mirror" ] || [ ! -z "$flip" ] || [ ! -z "$rotate" ]; then
     echo "re orientating scan before processing"
-    reorientatedfile="$tmpfileprefix"reoreintated.tif
-    convert $infile $mirror $rotate $flip +compress "$reorientatedfile"
-    infile="$reorientatedfile"
+    #reorientatedfile="$tmpfileprefix"reoreintated.tif
+    #convert $infile $mirror $rotate $flip +compress "$reorientatedfile"
+    convert $infile $mirror $rotate $flip +compress "$tmpfileprefix".mpc
+    infile="$tmpfileprefix".mpc
+else
+    convert $infile "$tmpfileprefix".mpc
+    infile="$tmpfileprefix".mpc
 fi
 
 DEBUG set -x;
@@ -432,7 +423,26 @@ for ((i=0;i<num;i++)); do
     framenumber=$((framenumber+1))
     echo CROPPING $outfile #CROPPING is keyword used to filter output
     DEBUG set -x;
-    convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $zip $outfile
+    convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $zip $outfile &
     set +x
 done
 
+if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
+    #touch "$tmpfileprefix"0work.tif
+    DEBUG set -x
+    if [ "$mode" = "gap" ] || [ "$mode" = "ends" ]; then #restore the correct size works better with rawtherepee
+        convert "$tmpfileprefix"0work.tif -bordercolor Tomato -border 0x"$shave" -compress zip "$tmpfileprefix"0work.tif &
+    fi
+    mapfile files < <(ls "$tmpfileprefix"1work.tif "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif "$tmpfileprefix"4work.tif)
+    #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
+    #caution this may have side effects as the logic is different compared to the low debug levels
+    set +x;
+    for ((i=0;i<${#files[*]};i++)); do
+        DEBUG set -x
+        convert ${files[i]} -scale x"$Y"! -compress zip ${files[i]} &
+        set +x;
+    done
+fi
+
+DEBUG echo "waiting to complete"
+wait
