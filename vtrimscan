@@ -99,14 +99,15 @@ DEBUG set -x
 if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
     #touch "$tmpfileprefix"0work.tif
     if [ "$mode" = "gap" ] || [ "$mode" = "ends" ]; then #restore the correct size works better with rawtherepee
-        convert "$tmpfileprefix"0work.tif -bordercolor Tomato -border 0x"$shave" -compress zip "$tmpfileprefix"0work.tif
+        convert "$tmpfileprefix"0work.tif -bordercolor Tomato -border 0x"$shave" -compress zip "$tmpfileprefix"0work.tif &
     fi
     mapfile files < <(ls "$tmpfileprefix"1work.tif "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif "$tmpfileprefix"4work.tif)
     #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
     #caution this may have side effects as the logic is different compared to the low debug levels
     for ((i=0;i<${#files[*]};i++)); do
-        convert ${files[i]} -scale x"$Y"! -compress zip ${files[i]}
+        convert ${files[i]} -scale x"$Y"! -compress zip ${files[i]} &
     done
+    wait
 fi
 
 }
@@ -305,7 +306,6 @@ if [ -z $pixel ];then
 fi
 DEBUG echo pixel $pixel
 #morphology to remove small white strips
-#this should remove false strips of film, because of holes in the holder
 convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
 #the following line should remove false film gaps that are X pixel wide but after testing it did not work see git a5a92bcf6438587c6d23a903c5d4a7514f09fc1f
 #convert "$tmpfileprefix"3work.tif -morphology close "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
