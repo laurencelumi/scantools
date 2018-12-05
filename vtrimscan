@@ -95,8 +95,9 @@ function cleanup {
     DEBUG set -x
     rm -f "$tmpfileprefix".mpc "$tmpfileprefix".cache
     if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
-        rm -f "$tmpfileprefix"* 
+        rm -f "$tmpfileprefix"*
     fi
+    exit 0
 }
 trap cleanup 1 2 3 6
 
@@ -239,13 +240,15 @@ DEBUG echo tmpfileprefix: $tmpfileprefix
 DEBUG echo outprefix: $outprefix
 
 #first orientate the image if necessary
+set -x;
 if [ ! -z "$mirror" ] || [ ! -z "$flip" ] || [ ! -z "$rotate" ]; then
     echo "re orientating scan before processing"
     #reorientatedfile="$tmpfileprefix"reoreintated.tif
     #convert $infile $mirror $rotate $flip +compress "$reorientatedfile"
     convert $infile $mirror $rotate $flip +compress "$tmpfileprefix".mpc
     infile="$tmpfileprefix".mpc
-else
+elif [[ ! "$infile" == *.mpc ]]; then
+    DEBUG echo "converting input to mpc file"
     convert $infile "$tmpfileprefix".mpc
     infile="$tmpfileprefix".mpc
 fi
