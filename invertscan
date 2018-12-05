@@ -58,8 +58,9 @@ function cleanup {
 if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
     rm -f "$tmpfileprefix"*
 fi
+exit 0
 }
-trap cleanup EXIT
+trap cleanup 0 1 2 3 6
 
 tmpdir="./"
 debug=0
@@ -186,7 +187,11 @@ if [[ $infile =~ .*.tif$ ]]; then
     CSPACE="-set colorspace RGB"
 fi
 
-tmpfileprefix="$tmpprefix"`date +%N``basename "${outfile%.tif}"`
+if [ "$debug" -eq 0 ]; then
+    tmpfileprefix="$tmpprefix"`date +%N`_`basename "${outfile%.tif}"`
+else
+    tmpfileprefix="$tmpprefix"debug_`basename "${outfile%.tif}"`
+fi
 DEBUG echo tmpfileprefix $tmpfileprefix
 
 if [ "$debug" -eq 2 ]; then
@@ -436,7 +441,8 @@ if [ $approach = "c_printing_density" ]; then
     #gscale=1.063
     #bscale=1.082
 
-    rscale=1.082602577 #from page 8
+    #rscale=1.082602577 #from page 8 "carlos aim"
+    rscale=1.3 #a stab in the dark for epson 4990
     gscale=1
     bscale=1
 
@@ -496,7 +502,8 @@ if [ $approach = "c_printing_density" ]; then
         caption+="min:     ${maxmins[3]}, ${maxmins[4]}, ${maxmins[5]}\n"
         caption+="FB D    :${densities[0]}, ${densities[1]}, ${densities[2]}\n"
         caption+="Shadow D:${densities[3]}, ${densities[4]}, ${densities[5]}\n"
-        caption+="D-Max   :${densities[6]}, ${densities[7]}, ${densities[8]}"
+        caption+="D-Max   :${densities[6]}, ${densities[7]}, ${densities[8]}\n"
+        caption+="R Den scaling :$rscale"
         caption=`printf "$caption"`
         DEBUG echo "$caption"
 

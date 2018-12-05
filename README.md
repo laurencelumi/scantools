@@ -5,24 +5,33 @@ A series of tools to improve film scanning.
 includes the following:
 
 - scantool
-- vtrimscan
 - invertscan
 
+- vtrimscan
 - profilescan
+
 - takepicture
 
-scantool:
+##scantool
 
-    takes a single scan of multiple films strips removes the holder and seperats each frame and inverts it
+    takes a single scan of multiple films strips removes the holder and seperates each frame and inverts it
 
     scantool both fullscan.tif
     scantool both -p profile dmax 1.8 fullscan.tif prefix_used_output_files
+
+```scantool both -fb 0.85001 -dmax auto  BW_gain1_85_033.tif BW_gain1_85_034.tif n10-816```
 
     or
 
     scantool frames fullscan.tif
 
-vtrimscan
+##invertscan
+
+    inverts a scan using a variety of different approaches, which is controlled by flags
+
+    invertscan -c3 someneg.tif
+
+##vtrimscan
 
     removes the film holder and seperates film from a scan containing multiple images
 
@@ -40,17 +49,25 @@ vtrimscan
 
      seperates each frame and trims the film
 
-invertscan:
+##profilescan
 
-    inverts a scan using a variety of different approaches, which is controlled by flags
+Creates profile information for later use
 
-    invertscan -c3 someneg.tif
+e.g. usage:
 
-profilescan:
+```profilescan -fb -p profile_name example_crop.tif```
 
-    creates profile information for later use
+creates a profile called profile_name using example_crop.tif as the input
 
-takepicture:
+```profilescan -fb -crop -crop 135x169+870+18213 -p profile_name example_crop.tif```
+creates a profile called profile_name using cropped area from example_crop.tif as the input
+
+```profilescan -l```
+
+lists all existing profiles
+        
+
+##takepicture
 
     creates a "digital negative" purely for trying ideas out.
 

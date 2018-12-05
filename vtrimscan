@@ -13,7 +13,7 @@ usage()
 	echo >&2 ""
 	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $progname gap | vstrip | ends [-d] [-dd] [-m] [-flip] [-r rotate] [-p pixel] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] infile [outfile_prefix]
+USAGE: $progname gap | vstrip | ends [-d] [-dd] [-m] [-flip] [-r rotate] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] [ -t ] infile [outfile_prefix]
 USAGE: $progname [-h ] [ -help ]
 
 vstrip    split vstrip   the script will seperate verticals strims of film
@@ -24,11 +24,10 @@ OPTIONS:
 
 
 -d          debug          provided usefull debuging and leaves intermediate files behind
--dd         debug          more extensive debugging uses full height intermediate files, which may give a different result from no-debug
+-dd         debug          more extensive debugging, outputs the black strip/frames as well
 -m          mirror         mirrors left to right the scan before it is processed, usefull if the negative was scanned emulsion down
 -flip       flip           mirrors the scan vertically before it is processed, usefull if the negative was scanned emulsion down
 -r          rotate         rotates the scan before it is processed, positive integer <= 360
--p          pixelwidth     the smallest amount of horizontal pixel that could make a usefull image defaults: 250
 -e          extend         extend crop on each side in pixels; integer; default=0
 -fb         filmbase       fuzz value used as threshold for removing any white areas from the scan
                            if brighest area of the film base is 75% then the threshold should be less than 25%
@@ -37,6 +36,7 @@ OPTIONS:
                            expressed as (integer) percent 0 to 100; default=3 for gap and 10 for vstrip
 -n          frame number   the starting frame number to use in file name; defaults to #1
 -z          zip            zip compress the output (the default does not compress the output)
+-t          temporary        output temporary mpc files instead of tif (used by scantool not a normal user option)
 
 MESSAGE1
 exit 1
@@ -92,25 +92,19 @@ qsort() {
    done
 }
 function cleanup {
-if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
-    rm -f "$tmpfileprefix"*
-fi
-DEBUG set -x
-if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
-    touch "$tmpfileprefix"0work.tif
-    mapfile files < <(ls "$tmpfileprefix"1work.tif "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif "$tmpfileprefix"4work.tif)
-    #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
-    #caution this may have side effects as the logic is different compared to the low debug levels
-    for ((i=0;i<${#files[*]};i++)); do
-        convert ${files[i]} -scale x"$Y"! +compress ${files[i]}
-    done
-fi
-
+    DEBUG set -x
+    #rm -f "$tmpfileprefix".mpc "$tmpfileprefix".cache
+    #dont explicitly delete the mpc and cache files when in debug mode, allows the debug cache to be resused in subsequent test runs
+    if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
+        rm -f "$tmpfileprefix"*
+    fi
+    exit 0
 }
-trap cleanup EXIT
+trap cleanup 0 1 2 3 6
 
 tmpdir="./"
 debug=0
+mpc=0
 tmpprefix=$tmpdir"_vt_"
 filmbase=5 #can reduce this value if increase the radius of the blur
 framenumber=1
@@ -151,6 +145,8 @@ do
             ;;
         -dd)	debug=2
             ;;
+        -t)	mpc=1
+            ;;
         -m)	mirror="-flop"
             ;;
         -flip)	flip="-flip"
@@ -163,14 +159,6 @@ do
                 usage
             fi
             rotate="-rotate $rotate +repage"
-            ;;
-        -p)    # pixel
-            shift
-            pixel="$1"
-            if [[ ! "$pixel" =~ ^[0-9]+$ ]]; then
-                echo "--- pixel=$pixel must be a positive integer value ---"
-                usage
-            fi
             ;;
         -e)    # extend
             shift
@@ -235,32 +223,43 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [ -z $outprefix ]; then
-    outprefix=${infile%".tif"}_
-else
-    outprefix=${outprefix%".tif"}_
+    outprefix=${infile}
 fi
-tmpfileprefix="$tmpprefix"`date +%N``basename "$outprefix"`
+outprefix=${outprefix%".tif"}
+outprefix=${outprefix%".mpc"}_
+
+if [ "$debug" -eq 0 ]; then
+    tmpfileprefix="$tmpprefix"`date +%N`_`basename "$outprefix"` #in debug don't use the clock
+else
+    tmpfileprefix="$tmpprefix"debug_`basename "$outprefix"` #in debug don't use the clock
+fi
 DEBUG echo tmpfileprefix: $tmpfileprefix
 DEBUG echo outprefix: $outprefix
 
 #first orientate the image if necessary
+DEBUG set -x;
 if [ ! -z "$mirror" ] || [ ! -z "$flip" ] || [ ! -z "$rotate" ]; then
     echo "re orientating scan before processing"
-    reorientatedfile="$tmpfileprefix"reoreintated.tif
-    convert $infile $mirror $rotate $flip +compress "$reorientatedfile"
-    infile="$reorientatedfile"
+    #reorientatedfile="$tmpfileprefix"reoreintated.tif
+    #convert $infile $mirror $rotate $flip +compress "$reorientatedfile"
+    convert $infile $mirror $rotate $flip +compress "$tmpfileprefix".mpc
+    infile="$tmpfileprefix".mpc
+elif [[ ! "$infile" == *.mpc ]]; then
+    DEBUG echo "converting input to mpc file"
+    convert $infile "$tmpfileprefix".mpc
+    infile="$tmpfileprefix".mpc
 fi
 
-DEBUG set -x;
-
 Y=`identify -format "%h" $infile `
-let shave=$Y/25
+shave=0 #shave is not used for vstrip but initialise it anyway
 
 tmpfile0="$tmpfileprefix"0work.tif
 if [ "$mode" = "gap" ]; then
+    let shave=$Y/25
     #remove any sprocket holes or missing bits of film use a default of 5% this mean the film base must be darker than 5%
     convert $infile -shave 0x$shave -fuzz "$filmbase"% -fill black -opaque white +compress +repage "$tmpfile0"
 elif [ "$mode" = "ends" ]; then
+let shave=$Y/12 #better tuned for when the film holder is slightly offset
     convert $infile -shave 0x$shave -fuzz "$filmbase"% -fill black -opaque white +compress "$tmpfile0"
 else
     tmpfile0="$infile"
@@ -290,13 +289,13 @@ fi
 
 
 convert "$tmpfileprefix"2work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"3work.tif
-#morphology could be adjusted to remove ghost frames i.e the gap must be x pixels wide
-#convert "$tmpfileprefix"3work.tif -morphology open "5x1:0,1,1,1,0" "$tmpfileprefix"4work.tif
-if [ -z $pixel ];then 
-    let pixel=$Y/10
-fi
-    
+
+let pixel=$Y/10
+DEBUG echo pixel $pixel
+#morphology to remove small white strips
 convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
+#the following line should remove false film gaps that are X pixel wide but after testing it did not work see git a5a92bcf6438587c6d23a903c5d4a7514f09fc1f
+#convert "$tmpfileprefix"3work.tif -morphology close "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
 
 arr=()
 OLD_IFS=$IFS
@@ -330,20 +329,20 @@ done
 DEBUG declare -p boxes
 
 if [ $mode = "gap" ]; then
-    #expimental code, this works but may need to revisit
     #work out the ratio of strip
     X=`identify -format "%w" $infile `
     stripratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y ]" info:`
     DEBUG echo stripratio $stripratio
-    if (( $(echo "$stripratio > 5" | bc -l) )); then
-        frameratio=1.2
+    if (( $(echo "$stripratio > 5" | bc -l) )); then #scope for tuning these parameters
+        gapratio=0.1
+        frameratio=1.35
         DEBUG echo guessing 35mm
     else
+        gapratio=0.1
         frameratio=0.8
         DEBUG echo guessing 120mm
     fi
 
-    # an attempt to identiy 35mm
     for ((i=0;i<num;i++)); do
         ibox=(${boxes[i]//:/ })
 
@@ -352,10 +351,9 @@ if [ $mode = "gap" ]; then
         ix="${ibox[3]}"
 
         ratio=`convert -size 1x1 xc: -format "%[fx: $iX"/"$Y]" info:`
-        DEBUG echo iratio $ratio
         #maybe need flags for 35mm and 120 ratios
-        if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
-            DEBUG echo suspect $icolor $ratio box: ${boxes[i]}
+        if ( [ $icolor =  "B" ] && (( $(echo "$ratio > $gapratio" | bc -l) )) ) || ( [ $icolor =  "W" ] && (( $(echo "$ratio < $frameratio" | bc -l) )) ) ; then
+            DEBUG echo found a suspect ratio: $ratio box: ${boxes[i]}
 
             for ((j=$i+1;j<num;j++)); do
                 jbox=(${boxes[j]//:/ })
@@ -365,18 +363,31 @@ if [ $mode = "gap" ]; then
                 jx="${jbox[3]}"
 
                 ratio=`convert -size 1x1 xc: -format "%[fx: $jX"/"$Y]" info:`
-                DEBUG echo jratio $ratio
-                if (( $(echo "$ratio > 0.1" | bc -l) )) && (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
-                    DEBUG echo following suspect $color $ratio box: ${boxes[j]}
+                if (( $(echo "$ratio < $frameratio" | bc -l) )) ; then
+                    DEBUG echo found the following suspect ratio: $ratio box: ${boxes[j]}
                     #merge box and nextbox
+                    DEBUG echo merging
+                    DEBUG echo before box i: ${boxes[i]}
+                    DEBUG echo before box j: ${boxes[j]}
                     boxes[i]="B:0:0:0:0"
+                    DEBUG echo after box i: ${boxes[i]}
                     iX=$((iX+$jX))
                     boxes[j]="W:""$iX":1:"$ix":0
                     i=$j
+                    DEBUG echo after box j: ${boxes[j]}
+                    #if we are now on black box and total ratio is greater frameratio break out
+                    ratio=`convert -size 1x1 xc: -format "%[fx: $iX"/"$Y]" info:`
+                    if ( [ $jcolor =  "B" ] && (( $(echo "$ratio > $frameratio" | bc -l) )) ) ; then
+                        DEBUG echo the last merged frame was black and total merged ratio is now $ratio so ending this merge iteration
+                        break;
+                    fi
                 else
+                    DEBUG echo following non-suspect ratio: $ratio box: ${boxes[j]}
                     break;
                 fi
             done
+        else
+            DEBUG echo non-suspect ratio: $ratio box: ${boxes[i]}
         fi
     done
     DEBUG declare -p boxes
@@ -404,11 +415,34 @@ for ((i=0;i<num;i++)); do
         continue;
     fi
 
-    outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
+    if [ "$mpc" -gt 0 ] ; then
+        outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.mpc
+    else
+        outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
+    fi
     framenumber=$((framenumber+1))
-    echo cropping $outfile
+    echo CROPPING $outfile #CROPPING is keyword used to filter output
     DEBUG set -x;
-    convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $zip $outfile
+    convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $zip $outfile &
     set +x
 done
 
+if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
+    #touch "$tmpfileprefix"0work.tif
+    DEBUG set -x
+    if [ "$mode" = "gap" ] || [ "$mode" = "ends" ]; then #restore the correct size works better with rawtherepee
+        convert "$tmpfileprefix"0work.tif -bordercolor Tomato -border 0x"$shave" -compress zip "$tmpfileprefix"0work.tif &
+    fi
+    mapfile files < <(ls "$tmpfileprefix"1work.tif "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif "$tmpfileprefix"4work.tif)
+    #do the conversion in both X an Y easier to visualise
+    set +x;
+    for ((i=0;i<${#files[*]};i++)); do
+        DEBUG set -x
+        convert ${files[i]} -scale x"$Y"! -compress zip ${files[i]} &
+        set +x;
+    done
+fi
+
+DEBUG echo "waiting to complete"
+DEBUG set -x
+wait

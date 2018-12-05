@@ -46,8 +46,9 @@ function cleanup {
 if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
     rm -f "$tmpfileprefix"*
 fi
+exit 0
 }
-trap cleanup EXIT
+trap cleanup 0 1 2 3 6
 
 
 tmpdir="./"
