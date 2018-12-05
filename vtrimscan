@@ -24,7 +24,7 @@ OPTIONS:
 
 
 -d          debug          provided usefull debuging and leaves intermediate files behind
--dd         debug          more extensive debugging uses full height intermediate files, which may give a different result from no-debug
+-dd         debug          more extensive debugging, outputs the black strip/frames as well 
 -m          mirror         mirrors left to right the scan before it is processed, usefull if the negative was scanned emulsion down
 -flip       flip           mirrors the scan vertically before it is processed, usefull if the negative was scanned emulsion down
 -r          rotate         rotates the scan before it is processed, positive integer <= 360
@@ -437,8 +437,7 @@ if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
         convert "$tmpfileprefix"0work.tif -bordercolor Tomato -border 0x"$shave" -compress zip "$tmpfileprefix"0work.tif &
     fi
     mapfile files < <(ls "$tmpfileprefix"1work.tif "$tmpfileprefix"2work.tif "$tmpfileprefix"3work.tif "$tmpfileprefix"4work.tif)
-    #do the conversion in both X an Y easier to visualise but unecessary as all pixel are identical in a vertical line
-    #caution this may have side effects as the logic is different compared to the low debug levels
+    #do the conversion in both X an Y easier to visualise
     set +x;
     for ((i=0;i<${#files[*]};i++)); do
         DEBUG set -x
