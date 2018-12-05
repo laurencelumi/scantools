@@ -13,7 +13,7 @@ usage()
 	echo >&2 ""
 	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $progname gap | vstrip | ends [-d] [-dd] [-m] [-flip] [-r rotate] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] infile [outfile_prefix]
+USAGE: $progname gap | vstrip | ends [-d] [-dd] [-m] [-flip] [-r rotate] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] [ -t ] infile [outfile_prefix]
 USAGE: $progname [-h ] [ -help ]
 
 vstrip    split vstrip   the script will seperate verticals strims of film
@@ -36,6 +36,7 @@ OPTIONS:
                            expressed as (integer) percent 0 to 100; default=3 for gap and 10 for vstrip
 -n          frame number   the starting frame number to use in file name; defaults to #1
 -z          zip            zip compress the output (the default does not compress the output)
+-t          temporary        output temporary mpc files instead of tif (used by scantool not a normal user option)
 
 MESSAGE1
 exit 1
@@ -92,16 +93,18 @@ qsort() {
 }
 function cleanup {
     DEBUG set -x
-    rm -f "$tmpfileprefix".mpc "$tmpfileprefix".cache
+    #rm -f "$tmpfileprefix".mpc "$tmpfileprefix".cache
+    #dont explicitly delete the mpc and cache files when in debug mode, allows the debug cache to be resused in subsequent test runs
     if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
         rm -f "$tmpfileprefix"*
     fi
     exit 0
 }
-trap cleanup 1 2 3 6
+trap cleanup 0 1 2 3 6
 
 tmpdir="./"
 debug=0
+mpc=0
 tmpprefix=$tmpdir"_vt_"
 filmbase=5 #can reduce this value if increase the radius of the blur
 framenumber=1
@@ -141,6 +144,8 @@ do
         -d)	debug=1
             ;;
         -dd)	debug=2
+            ;;
+        -t)	mpc=1
             ;;
         -m)	mirror="-flop"
             ;;
@@ -218,10 +223,11 @@ if [ ! -f "$infile" -o ! -r "$infile" ]; then
 fi
 
 if [ -z $outprefix ]; then
-    outprefix=${infile%".tif"}_
-else
-    outprefix=${outprefix%".tif"}_
+    outprefix=${infile}
 fi
+outprefix=${outprefix%".tif"}
+outprefix=${outprefix%".mpc"}_
+
 if [ "$debug" -eq 0 ]; then
     tmpfileprefix="$tmpprefix"`date +%N`_`basename "$outprefix"` #in debug don't use the clock
 else
@@ -231,7 +237,7 @@ DEBUG echo tmpfileprefix: $tmpfileprefix
 DEBUG echo outprefix: $outprefix
 
 #first orientate the image if necessary
-set -x;
+DEBUG set -x;
 if [ ! -z "$mirror" ] || [ ! -z "$flip" ] || [ ! -z "$rotate" ]; then
     echo "re orientating scan before processing"
     #reorientatedfile="$tmpfileprefix"reoreintated.tif
@@ -243,8 +249,6 @@ elif [[ ! "$infile" == *.mpc ]]; then
     convert $infile "$tmpfileprefix".mpc
     infile="$tmpfileprefix".mpc
 fi
-
-DEBUG set -x;
 
 Y=`identify -format "%h" $infile `
 shave=0 #shave is not used for vstrip but initialise it anyway
@@ -411,7 +415,11 @@ for ((i=0;i<num;i++)); do
         continue;
     fi
 
-    outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
+    if [ "$mpc" -gt 0 ] ; then
+        outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.mpc
+    else
+        outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
+    fi
     framenumber=$((framenumber+1))
     echo CROPPING $outfile #CROPPING is keyword used to filter output
     DEBUG set -x;

@@ -48,12 +48,13 @@ function DEBUG()
  [ ! "$debug" -eq 0 ] &&  $@
 }
 function cleanup {
-if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
-    rm -f "$tmpfileprefix"*
-fi
-exit 0
+    #dont explicitly delete the mpc and cache files when in debug mode, allows the debug cache to be resused by child scripts
+    if [ ! -z "$tmpfileprefix" ] &&  [ "$debug" -eq 0 ]; then
+        rm -f "$tmpfileprefix"*
+    fi
+    exit 0
 }
-trap cleanup 1 2 3 6
+trap cleanup 0 1 2 3 6
 
 tmpdir="./"
 debug=0
@@ -198,13 +199,13 @@ if [ $mode = "frames" ] || [ $mode = "both" ]; then
     for infile in "${infiles[@]}"; do
         echo processing $infile
         #because the strips of film will contain at some gaps the fuzz threshhold can be increased
-        mapfile files < <(vtrimscan vstrip $v_debug -f 4 $infile $tmpfileprefix | grep CROPPING | sed 's/^CROPPING //g' )
+        mapfile files < <(vtrimscan vstrip $v_debug -f 4 -t $infile $tmpfileprefix | grep CROPPING | sed 's/^CROPPING //g' )
         DEBUG echo files: ${files[*]}
 
 
         for ((i=0;i<${#files[*]};i++)); do
 
-            mapfile filesJ < <(vtrimscan ends $v_debug -r 90 -f 2 ${files[i]} | grep CROPPING | sed 's/^CROPPING //g' )
+            mapfile filesJ < <(vtrimscan ends $v_debug -r 90 -f 2 -t ${files[i]} | grep CROPPING | sed 's/^CROPPING //g' )
             DEBUG echo files j:${filesJ[*]}
             for ((j=0;j<${#filesJ[*]};j++)); do
                 mapfile filesK < <(vtrimscan gap $v_debug $fuzz $zip ${filesJ[j]} | grep CROPPING | sed 's/^CROPPING //g' )
