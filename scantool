@@ -90,6 +90,10 @@ do
         -dd)	debug=2
             v_debug="-d"
             ;;
+        -ddd)	debug=3
+            v_debug="-d"
+            vv_debug="-d"
+            ;;
         -n)    # number
             shift
             framenumber="$1"
@@ -199,7 +203,7 @@ if [ $mode = "frames" ] || [ $mode = "both" ]; then
     for infile in "${infiles[@]}"; do
         echo processing $infile
         #because the strips of film will contain at some gaps the fuzz threshhold can be increased
-        mapfile files < <(vtrimscan vstrip $v_debug -f 4 -t $infile $tmpfileprefix | grep CROPPING | sed 's/^CROPPING //g' )
+        mapfile files < <(vtrimscan vstrip $vv_debug -f 4 -t $infile $tmpfileprefix | grep CROPPING | sed 's/^CROPPING //g' )
         DEBUG echo files: ${files[*]}
 
 
