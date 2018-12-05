@@ -13,7 +13,7 @@ usage()
 	echo >&2 ""
 	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $progname gap | vstrip | ends [-d] [-dd] [-m] [-flip] [-r rotate] [-p pixel] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] infile [outfile_prefix]
+USAGE: $progname gap | vstrip | ends [-d] [-dd] [-m] [-flip] [-r rotate] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] infile [outfile_prefix]
 USAGE: $progname [-h ] [ -help ]
 
 vstrip    split vstrip   the script will seperate verticals strims of film
@@ -24,11 +24,10 @@ OPTIONS:
 
 
 -d          debug          provided usefull debuging and leaves intermediate files behind
--dd         debug          more extensive debugging, outputs the black strip/frames as well 
+-dd         debug          more extensive debugging, outputs the black strip/frames as well
 -m          mirror         mirrors left to right the scan before it is processed, usefull if the negative was scanned emulsion down
 -flip       flip           mirrors the scan vertically before it is processed, usefull if the negative was scanned emulsion down
 -r          rotate         rotates the scan before it is processed, positive integer <= 360
--p          pixelwidth     the smallest amount of horizontal pixel that could make a usefull image defaults: 250
 -e          extend         extend crop on each side in pixels; integer; default=0
 -fb         filmbase       fuzz value used as threshold for removing any white areas from the scan
                            if brighest area of the film base is 75% then the threshold should be less than 25%
@@ -155,14 +154,6 @@ do
                 usage
             fi
             rotate="-rotate $rotate +repage"
-            ;;
-        -p)    # pixel
-            shift
-            pixel="$1"
-            if [[ ! "$pixel" =~ ^[0-9]+$ ]]; then
-                echo "--- pixel=$pixel must be a positive integer value ---"
-                usage
-            fi
             ;;
         -e)    # extend
             shift
@@ -295,9 +286,7 @@ fi
 
 convert "$tmpfileprefix"2work.tif -blur 10x65355 -fuzz "$fuzz"% -fill black -opaque "$opaque" +fuzz -fill white +opaque black +compress "$tmpfileprefix"3work.tif
 
-if [ -z $pixel ];then
-    let pixel=$Y/10
-fi
+let pixel=$Y/10
 DEBUG echo pixel $pixel
 #morphology to remove small white strips
 convert "$tmpfileprefix"3work.tif -morphology open "Rectangle:"$pixel"x1" +compress "$tmpfileprefix"4work.tif
