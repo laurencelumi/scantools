@@ -237,13 +237,9 @@ if [ $mode = "frames" ] || [ $mode = "both" ]; then
 fi
 
 if [ $mode = "both" ]; then
-
-
     for ((i=0;i<${#invertfiles[*]};i++)); do
         mkdir -p "$outprefix"-P
         outfile="$outprefix"-P/`basename ${invertfiles[i]%".tif"}-P.tif`
         invertscan $options $zip ${invertfiles[i]} $outfile
     done
-
-
 fi

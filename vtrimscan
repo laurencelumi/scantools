@@ -444,4 +444,5 @@ if [ ! -z "$tmpfileprefix" ] && [ "$debug" -gt 0 ]; then
 fi
 
 DEBUG echo "waiting to complete"
+DEBUG set -x
 wait
