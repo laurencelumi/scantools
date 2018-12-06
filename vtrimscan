@@ -393,6 +393,45 @@ if [ $mode = "gap" ]; then
     DEBUG declare -p boxes
 fi
 
+if [ $mode = "ends" ] && [ $num -gt 3 ]; then
+    DEBUG set -x;
+    for ((i=0;i<num;i++)); do
+        ibox=(${boxes[i]//:/ })
+
+        icolor="${ibox[0]}"
+        iX="${ibox[1]}"
+        ix="${ibox[3]}"
+
+        if [ $icolor =  "B" ] && [ $i = 0 ]; then
+            continue;
+        fi
+        for ((j=$i+1;j<num;j++)); do
+            jbox=(${boxes[j]//:/ })
+
+            jcolor="${jbox[0]}"
+            jX="${jbox[1]}"
+            jx="${jbox[3]}"
+
+            if [ $jcolor =  "B" ] && [ $((num - 1)) = $j ]; then
+                break 2;
+            fi
+
+            #merge box and nextbox
+            DEBUG echo merging
+            DEBUG echo before box i: ${boxes[i]}
+            DEBUG echo before box j: ${boxes[j]}
+            boxes[i]="B:0:0:0:0"
+            DEBUG echo after box i: ${boxes[i]}
+            iX=$((iX+$jX))
+            boxes[j]="W:""$iX":1:"$ix":0
+            i=$j
+            DEBUG echo after box j: ${boxes[j]}
+        done
+    done
+    DEBUG declare -p boxes
+    set +x;
+fi
+
 DEBUG echo cropping frames
 for ((i=0;i<num;i++)); do
     box=(${boxes[i]//:/ })
