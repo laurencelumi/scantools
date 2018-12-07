@@ -483,7 +483,7 @@ for ((i=0;i<num;i++)); do
     checkratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y]" info:`
     doubleratio=`convert -size 1x1 xc: -format "%[fx: $frameratio * 2 + $gapratio ]" info:`
     DEBUG echo checkratio $checkratio
-    if  [ "$mode" = "gap" ] && (( $(echo "$checkratio > $doubleratio" | bc -l) ))  ; then #dont think this can actually get into a recursive loop, but only time will prove this
+    if  [ "$mode" = "gap" ] && [ $num -gt 1 ] && (( $(echo "$checkratio > $doubleratio" | bc -l) ))  ; then #check for $num > 1 is stop infinite recursion 
         DEBUG echo found one $checkratio
         DEBUG set -x;
         outfile="$outprefix""sub"-`printf "%03d" "$framenumber"`.mpc
