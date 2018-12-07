@@ -13,7 +13,7 @@ usage()
 	echo >&2 ""
 	echo >&2 "$progname:" "$@"
         cat << MESSAGE1
-USAGE: $progname gap | vstrip | ends [-d] [-dd] [-m] [-flip] [-r rotate] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] [ -t ] infile [outfile_prefix]
+USAGE: $progname gap | vstrip | ends [-d] [-dd] [-m] [-flip] [-r rotate] [-z] [-e extend] [-fb fbfuzz] [-f fuzz] [-n number] [ -t ] [ -type 35mm|6x6 ] infile [outfile_prefix]
 USAGE: $progname [-h ] [ -help ]
 
 vstrip    split vstrip   the script will seperate verticals strims of film
@@ -29,14 +29,12 @@ OPTIONS:
 -flip       flip           mirrors the scan vertically before it is processed, usefull if the negative was scanned emulsion down
 -r          rotate         rotates the scan before it is processed, positive integer <= 360
 -e          extend         extend crop on each side in pixels; integer; default=0
--fb         filmbase       fuzz value used as threshold for removing any white areas from the scan
-                           if brighest area of the film base is 75% then the threshold should be less than 25%
-                           expressed as (integer) percent 0 to 100; default=25
+-fb         filmbase       threshold value for removing any white areas from the scan default is 5% which means the film base should be dimmer than 95%;
 -f          fuzz           fuzz value used for a threshold to find area outside the frame, either the black film holder or the gaps between frames
                            expressed as (integer) percent 0 to 100; default=3 for gap and 10 for vstrip
 -n          frame number   the starting frame number to use in file name; defaults to #1
 -z          zip            zip compress the output (the default does not compress the output)
--t          temporary        output temporary mpc files instead of tif (used by scantool not a normal user option)
+-t          temporary      output temporary mpc files instead of tif (used by scantool not a normal user option)
 
 MESSAGE1
 exit 1
@@ -141,15 +139,22 @@ do
             echo ""
             help
             ;;
-        -d)	debug=1
+        -d)
+            debug=1
+            r_options+=" "$1
             ;;
-        -dd)	debug=2
+        -dd)
+            debug=2
+            r_options+=" "$1
             ;;
-        -t)	mpc=1
+        -t)
+            mpc=1
             ;;
-        -m)	mirror="-flop"
+        -m)
+            mirror="-flop"
             ;;
-        -flip)	flip="-flip"
+        -flip)
+            flip="-flip"
             ;;
         -r)    # rotate
             shift
@@ -161,24 +166,30 @@ do
             rotate="-rotate $rotate +repage"
             ;;
         -e)    # extend
+            r_options+=" "$1
             shift
             extend="$1"
+            r_options+=" "$1
             if [[ ! "$extend" =~ ^[0-9]+$ ]]; then
                 echo "--- extend=$extend must be a positive integer value ---"
                 usage
             fi
             ;;
         -fb)    # filmbase
+            r_options+=" "$1
             shift
             filmbase="$1"
+            r_options+=" "$1
             if [[ ! "$filmbase" =~ ^[0-9]+$ ]] || [ "$filmbase" -lt 0 -o "$filmbase" -gt 100 ]; then
                 echo "--- filmbase=$filmbase must be a positive integer value between 0 and 100 ---"
                 usage
             fi
             ;;
         -f)    # fuzz
+            r_options+=" "$1
             shift
             fuzz="$1"
+            r_options+=" "$1
             if [[ ! "$fuzz" =~ ^[0-9]+$ ]] || [ "$fuzz" -lt 0 -o "$fuzz" -gt 100 ]; then
                 echo "--- fuzz=$fuzz must be a positive integer value between 0 and 100 ---"
                 usage
@@ -192,8 +203,17 @@ do
                 usage
             fi
             ;;
+        -type)    # type
+            shift
+            type="$1"
+            if [ "$1" != "35mm" ] && [ "$1" != "6x6" ]; then
+                echo "type must be 35mm or 6x6 currently"
+                usage
+            fi
+            ;;
         -z)
             zip="-compress zip"
+            r_options+=" "$1
             ;;
         -)    # STDIN and end of arguments
             break
@@ -329,18 +349,28 @@ done
 DEBUG declare -p boxes
 
 if [ $mode = "gap" ]; then
-    #work out the ratio of strip
-    X=`identify -format "%w" $infile `
-    stripratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y ]" info:`
-    DEBUG echo stripratio $stripratio
-    if (( $(echo "$stripratio > 5" | bc -l) )); then #scope for tuning these parameters
+    if [ -z $type ]; then
+        #work out the ratio of strip
+        X=`identify -format "%w" $infile `
+        stripratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y ]" info:`
+        DEBUG echo stripratio $stripratio
+        if (( $(echo "$stripratio > 5" | bc -l) )); then #scope for tuning these parameters
+            type="35mm"
+            DEBUG echo guessing 35mm
+        else
+            type="6x6"
+            DEBUG echo guessing 6x6 in 3x3 frames
+        fi
+    fi
+
+    if [ $type == "35mm" ]; then #scope for tuning these parameters
         gapratio=0.1
         frameratio=1.35
-        DEBUG echo guessing 35mm
-    else
+    elif [ $type == "6x6" ]; then
         gapratio=0.1
         frameratio=0.8
-        DEBUG echo guessing 120mm
+    else
+        exit #this should not happen
     fi
 
     for ((i=0;i<num;i++)); do
@@ -444,25 +474,39 @@ for ((i=0;i<num;i++)); do
     #y="${box[4]}"
     y=0
 
-    if [ $extend -ne 0 ]; then
-        X=$((X-($extend*2)))
-        x=$((x+$extend))
-    fi
-
     if [ "$debug" -lt 2 ] && [ "$color" = "B" ]; then
         DEBUG echo skipping $i XYxy $X $Y $x $y
         continue;
     fi
 
-    if [ "$mpc" -gt 0 ] ; then
-        outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.mpc
+    #check to see a large frame and time to have another go
+    checkratio=`convert -size 1x1 xc: -format "%[fx: $X"/"$Y]" info:`
+    doubleratio=`convert -size 1x1 xc: -format "%[fx: $frameratio * 2 + $gapratio ]" info:`
+    DEBUG echo checkratio $checkratio
+    if  [ "$mode" = "gap" ] && (( $(echo "$checkratio > $doubleratio" | bc -l) ))  ; then #dont think this can actually get into a recursive loop, but only time will prove this
+        DEBUG echo found one $checkratio
+        DEBUG set -x;
+        outfile="$outprefix""sub"-`printf "%03d" "$framenumber"`.mpc
+        convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $zip $outfile
+        vtrimscan gap -type $type $r_options $outfile
+        wait #important to wait here
     else
-        outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
+        if [ $extend -ne 0 ]; then
+            X=$((X-($extend*2)))
+            x=$((x+$extend))
+        fi
+
+        if [ "$mpc" -gt 0 ] ; then
+            outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.mpc
+        else
+            outfile="$outprefix""$suffix"-`printf "%03d" "$framenumber"`.tif
+        fi
+        echo CROPPING $outfile #CROPPING is keyword used to filter output
+        DEBUG set -x;
+        convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $zip $outfile &
     fi
+
     framenumber=$((framenumber+1))
-    echo CROPPING $outfile #CROPPING is keyword used to filter output
-    DEBUG set -x;
-    convert $infile +repage -crop "$X"x"$Y"+"$x"+"$y" +repage $zip $outfile &
     set +x
 done
 
