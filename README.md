@@ -14,7 +14,7 @@ includes the following:
 
 ## scantool
 
-    takes a single scan of multiple films strips removes the holder and seperates each frame and inverts it
+    takes a single scan of multiple films strips removes the holder and separates each frame and inverts it
 
     scantool both fullscan.tif
     scantool both -p profile dmax 1.8 fullscan.tif prefix_used_output_files
@@ -33,7 +33,7 @@ includes the following:
 
 ## vtrimscan
 
-    removes the film holder and seperates film from a scan containing multiple images
+    removes the film holder and separates film from a scan containing multiple images
 
     e.g. usage:
 
@@ -47,7 +47,7 @@ includes the following:
 
      vtrimscan gap strip-1.tif
 
-     seperates each frame and trims the film
+     separates each frame and trims the film
 
 ## profilescan
 
@@ -73,3 +73,18 @@ lists all existing profiles
 
     takepicture some.jpg
 
+## Examples
+
+    Download the [file](https://i.ibb.co/tq8NL0y/kodak400.jpg)
+
+```wget https://i.ibb.co/tq8NL0y/kodak400.jpg```
+
+   Normally this file would be a 16bit tiff, but this file works as example
+
+   the following commands then work
+
+   #scantool frames kodak400.jpg directory_to_create_files
+
+   or
+
+   #scantool both -fb 0.4196,0.2745,0.2039 kodak400.jpg output_dir
