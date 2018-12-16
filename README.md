@@ -75,7 +75,7 @@ lists all existing profiles
 
 ## Examples
 
-    Download the [file](https://i.ibb.co/tq8NL0y/kodak400.jpg)
+   Download the [file](https://i.ibb.co/tq8NL0y/kodak400.jpg)
 
 ```wget https://i.ibb.co/tq8NL0y/kodak400.jpg```
 
