@@ -12,7 +12,7 @@ includes the following:
 
 - takepicture
 
-##scantool
+## scantool
 
     takes a single scan of multiple films strips removes the holder and seperates each frame and inverts it
 
@@ -25,13 +25,13 @@ includes the following:
 
     scantool frames fullscan.tif
 
-##invertscan
+## invertscan
 
     inverts a scan using a variety of different approaches, which is controlled by flags
 
     invertscan -c3 someneg.tif
 
-##vtrimscan
+## vtrimscan
 
     removes the film holder and seperates film from a scan containing multiple images
 
@@ -49,7 +49,7 @@ includes the following:
 
      seperates each frame and trims the film
 
-##profilescan
+## profilescan
 
 Creates profile information for later use
 
@@ -67,7 +67,7 @@ creates a profile called profile_name using cropped area from example_crop.tif a
 lists all existing profiles
         
 
-##takepicture
+## takepicture
 
     creates a "digital negative" purely for trying ideas out.
 
